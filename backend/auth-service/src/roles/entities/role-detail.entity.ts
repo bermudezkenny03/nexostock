@@ -1,5 +1,6 @@
 export class RoleDetailEntity {
   id!: string;
+  businessId!: string;
   code!: string;
   name!: string;
   description!: string | null;

@@ -7,6 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  legalName String?  @map("legal_name")
+  taxId     String?  @map("tax_id")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users User[]
+  roles Role[]
+
+  @@map("businesses")
+}
+
 model Module {
   id          String    @id @default(uuid())
   parentId    String?   @map("parent_id")
@@ -43,16 +58,19 @@ model Permission {
 
 model Role {
   id          String   @id @default(uuid())
-  code        String   @unique
+  businessId  String   @map("business_id")
+  code        String
   name        String
   description String?
   isSystem    Boolean  @default(false) @map("is_system")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  business        Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   rolePermissions RolePermission[]
   userRoles       UserRole[]
 
+  @@unique([businessId, code])
   @@map("roles")
 }
 
@@ -69,12 +87,14 @@ model RolePermission {
 
 model User {
   id           String   @id @default(uuid())
+  businessId   String   @map("business_id")
   email        String   @unique
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   detail        UserDetail?
   userRoles     UserRole[]
   refreshTokens RefreshToken[]

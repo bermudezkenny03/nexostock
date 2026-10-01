@@ -20,17 +20,18 @@ import {
 export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(): Promise<RoleListItemEntity[]> {
+  async findAll(businessId: string): Promise<RoleListItemEntity[]> {
     const roles = await this.prisma.role.findMany({
+      where: { businessId },
       include: roleWithPermissionsInclude,
       orderBy: { name: 'asc' },
     });
     return roles.map((role) => this.toListItem(role));
   }
 
-  async findOne(id: string): Promise<RoleDetailEntity> {
-    const role = await this.prisma.role.findUnique({
-      where: { id },
+  async findOne(id: string, businessId: string): Promise<RoleDetailEntity> {
+    const role = await this.prisma.role.findFirst({
+      where: { id, businessId },
       include: roleWithPermissionsInclude,
     });
     if (!role) {
@@ -39,14 +40,19 @@ export class RolesService {
     return this.toDetail(role);
   }
 
-  async create(dto: CreateRoleDto): Promise<RoleDetailEntity> {
+  async create(
+    dto: CreateRoleDto,
+    businessId: string,
+  ): Promise<RoleDetailEntity> {
     const code = dto.code
       ? normalizeRoleCode(dto.code)
       : roleCodeFromName(dto.name);
     if (!code) {
       throw new BadRequestException('Invalid role code');
     }
-    const existing = await this.prisma.role.findUnique({ where: { code } });
+    const existing = await this.prisma.role.findUnique({
+      where: { businessId_code: { businessId, code } },
+    });
     if (existing) {
       throw new ConflictException('Role code already exists');
     }
@@ -57,6 +63,7 @@ export class RolesService {
 
     const role = await this.prisma.role.create({
       data: {
+        businessId,
         code,
         name: dto.name,
         description: dto.description,
@@ -75,8 +82,14 @@ export class RolesService {
     return this.toDetail(role);
   }
 
-  async update(id: string, dto: UpdateRoleDto): Promise<RoleDetailEntity> {
-    const role = await this.prisma.role.findUnique({ where: { id } });
+  async update(
+    id: string,
+    dto: UpdateRoleDto,
+    businessId: string,
+  ): Promise<RoleDetailEntity> {
+    const role = await this.prisma.role.findFirst({
+      where: { id, businessId },
+    });
     if (!role) {
       throw new NotFoundException('Role not found');
     }
@@ -112,11 +125,13 @@ export class RolesService {
       }
     });
 
-    return this.findOne(id);
+    return this.findOne(id, businessId);
   }
 
-  async remove(id: string): Promise<void> {
-    const role = await this.prisma.role.findUnique({ where: { id } });
+  async remove(id: string, businessId: string): Promise<void> {
+    const role = await this.prisma.role.findFirst({
+      where: { id, businessId },
+    });
     if (!role) {
       throw new NotFoundException('Role not found');
     }
@@ -139,6 +154,7 @@ export class RolesService {
   private toListItem(role: RoleWithPermissions): RoleListItemEntity {
     return {
       id: role.id,
+      businessId: role.businessId,
       code: role.code,
       name: role.name,
       description: role.description,
@@ -152,6 +168,7 @@ export class RolesService {
   private toDetail(role: RoleWithPermissions): RoleDetailEntity {
     return {
       id: role.id,
+      businessId: role.businessId,
       code: role.code,
       name: role.name,
       description: role.description,
