@@ -1,192 +1,141 @@
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'node:crypto';
+import { BusinessProvisioningService } from '../business/business-provisioning.service';
 import { AccessService } from '../common/access';
-import type { AccessUserProfile, JwtPayload } from '../common/interfaces';
+import { registrationEnabled } from '../common/config/auth.config';
+import { bcryptRounds } from '../common/config/bcrypt.config';
 import { PrismaService } from '../prisma/prisma.service';
-import { LogoutDto } from './dto/logout.dto';
-import { LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  LogoutDto,
+  RefreshDto,
+  RegisterBusinessDto,
+} from './dto';
 import {
   AuthUserEntity,
   LoginResponseEntity,
   RefreshResponseEntity,
 } from './entities';
-import type { IAuthUser, IStoredRefreshToken, ITokenPair } from './interfaces';
+import { TokenService } from './token.service';
+
+const INVALID_CREDENTIALS = 'Credenciales inválidas';
 
 @Injectable()
 export class AuthService {
+  private readonly dummyPasswordHash = bcrypt.hashSync(
+    'nexostock-timing-equalizer',
+    bcryptRounds(),
+  );
+
   constructor(
     private readonly accessService: AccessService,
-    private readonly jwtService: JwtService,
+    private readonly provisioning: BusinessProvisioningService,
+    private readonly tokenService: TokenService,
     private readonly prisma: PrismaService,
   ) {}
 
   async login(dto: LoginDto): Promise<LoginResponseEntity> {
-    const candidate = await this.accessService.findActiveAuthCandidateByEmail(
-      dto.email,
+    const user = await this.accessService.findUserWithAccessByEmail(dto.email);
+    const valid = await bcrypt.compare(
+      dto.password,
+      user?.passwordHash ?? this.dummyPasswordHash,
     );
-
-    if (!candidate) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (!user || !valid) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
-    const valid = await bcrypt.compare(dto.password, candidate.passwordHash);
-    if (!valid) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (!user.isActive) {
+      throw new ForbiddenException('El usuario está inactivo');
+    }
+    if (!user.business.isActive) {
+      throw new ForbiddenException('El negocio está inactivo');
     }
 
-    const authUser = this.mapAccessProfileToAuthUser(candidate.profile);
-    const tokens = await this.issueTokenPair(authUser);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
+    const authUser = this.accessService.mapToAccessProfile(user);
     return {
-      ...tokens,
+      ...(await this.tokenService.issueTokenPair(authUser)),
+      user: authUser,
+    };
+  }
+
+  async register(dto: RegisterBusinessDto): Promise<LoginResponseEntity> {
+    if (!registrationEnabled()) {
+      throw new ForbiddenException(
+        'El registro de negocios está deshabilitado',
+      );
+    }
+
+    const { ownerId } = await this.provisioning.createWithOwner(dto);
+    const authUser = await this.requireActiveProfile(ownerId);
+    return {
+      ...(await this.tokenService.issueTokenPair(authUser)),
       user: authUser,
     };
   }
 
   async refresh(dto: RefreshDto): Promise<RefreshResponseEntity> {
-    const stored = await this.findValidRefreshTokenRecord(dto.refreshToken);
-    const profile = await this.accessService.findActiveAccessProfileById(
-      stored.userId,
+    const userId = await this.tokenService.consumeRefreshToken(
+      dto.refreshToken,
     );
-
-    if (!profile) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    await this.revokeRefreshToken(stored.id);
-
-    const authUser = this.mapAccessProfileToAuthUser(profile);
-
-    return this.issueTokenPair(authUser);
+    const authUser = await this.requireActiveProfile(userId);
+    return this.tokenService.issueTokenPair(authUser);
   }
 
-  async logout(dto: LogoutDto): Promise<void> {
-    const tokenHash = this.hashRefreshToken(dto.refreshToken);
-    await this.prisma.refreshToken.updateMany({
-      where: {
-        tokenHash,
-        revokedAt: null,
-      },
-      data: { revokedAt: new Date() },
+  logout(dto: LogoutDto): Promise<void> {
+    return this.tokenService.revokeRefreshToken(dto.refreshToken);
+  }
+
+  logoutAll(userId: string): Promise<void> {
+    return this.tokenService.revokeAllForUser(userId);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Sesión inválida o expirada');
+    }
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new BadRequestException('La contraseña actual no es correcta');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'La nueva contraseña debe ser distinta de la actual',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, bcryptRounds());
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      await this.tokenService.revokeAllForUser(userId, tx);
     });
   }
 
-  async getProfile(userId: string): Promise<AuthUserEntity> {
+  getProfile(userId: string): Promise<AuthUserEntity> {
+    return this.requireActiveProfile(userId);
+  }
+
+  private async requireActiveProfile(userId: string): Promise<AuthUserEntity> {
     const profile =
       await this.accessService.findActiveAccessProfileById(userId);
-
     if (!profile) {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Usuario o negocio inactivo');
     }
-
-    return this.mapAccessProfileToAuthUser(profile);
-  }
-
-  private async issueTokenPair(authUser: IAuthUser): Promise<ITokenPair> {
-    const accessToken = await this.signAccessToken(authUser);
-    const refreshToken = await this.createRefreshToken(authUser.id);
-
-    return { accessToken, refreshToken };
-  }
-
-  private async findValidRefreshTokenRecord(
-    refreshToken: string,
-  ): Promise<IStoredRefreshToken> {
-    const tokenHash = this.hashRefreshToken(refreshToken);
-    const stored = await this.prisma.refreshToken.findFirst({
-      where: {
-        tokenHash,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      select: { id: true, userId: true },
-    });
-
-    if (!stored) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    return stored;
-  }
-
-  private async revokeRefreshToken(refreshTokenId: string): Promise<void> {
-    await this.prisma.refreshToken.update({
-      where: { id: refreshTokenId },
-      data: { revokedAt: new Date() },
-    });
-  }
-
-  private async signAccessToken(authUser: IAuthUser): Promise<string> {
-    const payload: JwtPayload = {
-      sub: authUser.id,
-      email: authUser.email,
-      businessId: authUser.businessId,
-      roles: authUser.roles,
-      permissions: authUser.permissions,
-    };
-
-    return this.jwtService.signAsync(payload);
-  }
-
-  private async createRefreshToken(userId: string): Promise<string> {
-    const bytes = Number.parseInt(process.env.REFRESH_TOKEN_BYTES ?? '32', 10);
-    const token = randomBytes(bytes).toString('base64url');
-    const tokenHash = this.hashRefreshToken(token);
-    const expiresAt = new Date(
-      Date.now() + this.parseDurationMs(process.env.REFRESH_EXPIRES_IN ?? '7d'),
-    );
-
-    await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        tokenHash,
-        expiresAt,
-      },
-    });
-
-    return token;
-  }
-
-  private hashRefreshToken(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
-  }
-
-  private parseDurationMs(value: string): number {
-    const match = /^(\d+)([smhd])$/.exec(value.trim());
-    if (!match) {
-      throw new Error(`Invalid duration: ${value}`);
-    }
-
-    const amount = Number.parseInt(match[1], 10);
-    const unit = match[2];
-    const multipliers: Record<string, number> = {
-      s: 1000,
-      m: 60_000,
-      h: 3_600_000,
-      d: 86_400_000,
-    };
-
-    return amount * multipliers[unit]!;
-  }
-
-  private mapAccessProfileToAuthUser(
-    profile: AccessUserProfile,
-  ): AuthUserEntity {
-    return {
-      id: profile.id,
-      email: profile.email,
-      businessId: profile.businessId,
-      businessName: profile.businessName,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      roles: profile.roles,
-      permissions: profile.permissions,
-    };
+    return profile;
   }
 }
