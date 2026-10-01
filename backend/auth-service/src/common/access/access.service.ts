@@ -1,22 +1,40 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { AccessUserProfile } from './access-user-profile.interface';
+import type { UserAuthCandidate } from './user-auth-candidate.interface';
 import {
   userWithAuthInclude,
   type UserWithAccess,
 } from './user-with-access.interface';
 
-export interface AccessUserProfile {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  roles: string[];
-  permissions: string[];
-}
-
 @Injectable()
 export class AccessService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findActiveAuthCandidateByEmail(
+    email: string,
+  ): Promise<UserAuthCandidate | null> {
+    const user = await this.findUserWithAccessByEmail(email);
+    if (!this.isActiveUserWithAccess(user)) {
+      return null;
+    }
+
+    return {
+      passwordHash: user.passwordHash,
+      profile: this.mapToAccessProfile(user),
+    };
+  }
+
+  async findActiveAccessProfileById(
+    userId: string,
+  ): Promise<AccessUserProfile | null> {
+    const user = await this.findUserWithAccessById(userId);
+    if (!this.isActiveUserWithAccess(user)) {
+      return null;
+    }
+
+    return this.mapToAccessProfile(user);
+  }
 
   async findUserWithAccessByEmail(email: string): Promise<UserWithAccess | null> {
     return this.prisma.user.findUnique({
@@ -45,10 +63,18 @@ export class AccessService {
     return {
       id: user.id,
       email: user.email,
+      businessId: user.businessId,
+      businessName: user.business.name,
       firstName: user.detail?.firstName ?? null,
       lastName: user.detail?.lastName ?? null,
       roles,
       permissions,
     };
+  }
+
+  private isActiveUserWithAccess(
+    user: UserWithAccess | null,
+  ): user is UserWithAccess {
+    return Boolean(user?.isActive && user.business.isActive);
   }
 }

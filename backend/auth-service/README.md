@@ -2,6 +2,8 @@
 
 NestJS API for authentication, users, roles, and RBAC permissions.
 
+Each user belongs to exactly one **Business** (Negocio). Roles are scoped per business; modules and permissions are global. The JWT access token includes `businessId`; user and role APIs filter by the requester's business from the token (clients must not send `businessId` in the body).
+
 ## Prerequisites
 
 - Node.js 20+
@@ -51,14 +53,16 @@ npm install
 npx prisma generate
 ```
 
-### Option A: Migrations (recommended)
+### Option A: Migrations
 
-Fresh database:
+Empty database (CI, new environments):
 
 ```bash
 npx prisma migrate deploy
 npm run prisma:seed
 ```
+
+A single migration (`20251001000000_init_auth`) creates the full auth schema: businesses, users, roles, refresh tokens, and RBAC tables.
 
 Development (creates/applies migrations):
 
@@ -67,20 +71,16 @@ npx prisma migrate dev
 npm run prisma:seed
 ```
 
-If the database was created earlier with `db push` and migrate reports drift, baseline the existing schema:
+### Option B: Local reset (fastest)
+
+Wipes the auth schema and reapplies `schema.prisma` (no migration history required on your machine):
 
 ```bash
-npx prisma migrate resolve --applied 20251001000000_init_auth
-```
-
-### Option B: db push (prototyping)
-
-```bash
-npx prisma db push
+npx prisma db push --force-reset
 npm run prisma:seed
 ```
 
-`db push` syncs the schema without migration history; use `migrate` for team/production workflows.
+Use **Option A** when you need migration history to match production; use **Option B** for everyday local work when resetting data is fine.
 
 ## Seed / default admin
 
@@ -125,7 +125,7 @@ Protected routes expect `Authorization: Bearer <accessToken>`.
 
 ## Auth flow
 
-1. **Login** — `POST /api/auth/login` with email and password. Response includes a short-lived **access token** (JWT), an opaque **refresh token**, and the user profile.
+1. **Login** — `POST /api/auth/login` with email and password. Response includes a short-lived **access token** (JWT with `businessId`), an opaque **refresh token**, and the user profile (`businessId`, `businessName`).
 2. **API calls** — Send the access token in the `Authorization: Bearer` header (e.g. `GET /api/auth/me`).
 3. **Refresh** — When the access token expires, `POST /api/auth/refresh` with `{ "refreshToken": "..." }`. Returns a new access token and a **rotated** refresh token; the previous refresh token is revoked.
 4. **Logout** — `POST /api/auth/logout` with `{ "refreshToken": "..." }` to revoke that refresh token (204 No Content). Further refresh attempts with that token fail.

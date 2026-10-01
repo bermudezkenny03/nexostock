@@ -1,6 +1,8 @@
 export interface IAuthUser {
   id: string;
   email: string;
+  businessId: string;
+  businessName: string;
   firstName: string | null;
   lastName: string | null;
   roles: string[];

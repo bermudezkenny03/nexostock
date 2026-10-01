@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -13,6 +14,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { Permission } from '../common/rbac/permission.constants';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
+import type { AuthenticatedRequest } from '../common/interfaces';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import type { UserDetailEntity, UserListItemEntity } from './entities';
 import { UsersService } from './users.service';
@@ -26,22 +28,26 @@ export class UsersController {
 
   @Get()
   @RequirePermissions(Permission.USERS_MANAGE)
-  findAll(): Promise<UserListItemEntity[]> {
-    return this.usersService.findAll();
+  findAll(@Req() req: AuthenticatedRequest): Promise<UserListItemEntity[]> {
+    return this.usersService.findAll(req.user.businessId);
   }
 
   @Get(':id')
   @RequirePermissions(Permission.USERS_MANAGE)
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<UserDetailEntity> {
-    return this.usersService.findOne(id);
+    return this.usersService.findOne(id, req.user.businessId);
   }
 
   @Post()
   @RequirePermissions(Permission.USERS_MANAGE)
-  create(@Body() dto: CreateUserDto): Promise<UserDetailEntity> {
-    return this.usersService.create(dto);
+  create(
+    @Body() dto: CreateUserDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<UserDetailEntity> {
+    return this.usersService.create(dto, req.user.businessId);
   }
 
   @Patch(':id')
@@ -49,7 +55,8 @@ export class UsersController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<UserDetailEntity> {
-    return this.usersService.update(id, dto);
+    return this.usersService.update(id, dto, req.user.businessId);
   }
 }

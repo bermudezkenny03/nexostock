@@ -9,7 +9,7 @@ import {
   REQUIRE_PERMISSIONS_KEY,
   type RequiredPermission,
 } from '../decorators/require-permissions.decorator';
-import type { JwtPayload } from '../interfaces';
+import type { AuthenticatedRequest } from '../interfaces';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -25,7 +25,7 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<{ user?: JwtPayload }>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const permissions = request.user?.permissions ?? [];
     const allowed = required.some((code) => permissions.includes(code));
 
