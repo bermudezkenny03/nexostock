@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { roleCodeFromName } from '../common/utils/code-from-name.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto, UpdateRoleDto } from './dto';
 import { RoleDetailEntity, RoleListItemEntity } from './entities';
@@ -36,7 +37,7 @@ export class RolesService {
   }
 
   async create(dto: CreateRoleDto): Promise<RoleDetailEntity> {
-    const code = this.generateRoleCode(dto.name);
+    const code = roleCodeFromName(dto.name);
     const existing = await this.prisma.role.findUnique({ where: { code } });
     if (existing) {
       throw new ConflictException('Role code already exists');
@@ -116,15 +117,6 @@ export class RolesService {
     }
 
     await this.prisma.role.delete({ where: { id } });
-  }
-
-  private generateRoleCode(name: string): string {
-    const slug = name
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '_')
-      .replace(/^_|_$/g, '');
-    return slug || `ROLE_${Date.now()}`;
   }
 
   private async assertPermissionsExist(permissionIds: string[]): Promise<void> {
