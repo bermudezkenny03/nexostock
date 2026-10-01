@@ -1,31 +1,25 @@
 import 'dotenv/config';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { configureApp, setupSwagger } from './app.setup';
+import { assertProductionJwtSecret } from './common/config/jwt.config';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
+  assertProductionJwtSecret();
   const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('api');
-  app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  configureApp(app);
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('NexoStock Auth Service')
-    .setDescription('Authentication, users, roles, and permissions API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  const swaggerEnabled =
+    (process.env.SWAGGER_ENABLED ??
+      String(process.env.NODE_ENV !== 'production')) === 'true';
+  if (swaggerEnabled) {
+    setupSwagger(app);
+  }
 
-  await app.listen(process.env.PORT ?? 3001);
+  const port = Number.parseInt(process.env.PORT ?? '3001', 10);
+  await app.listen(port);
+  Logger.log(`Auth service listening on port ${port}`, 'Bootstrap');
 }
-bootstrap();
+
+void bootstrap();
