@@ -6,6 +6,7 @@ export const roleWithPermissionsInclude = {
       permission: true,
     },
   },
+  _count: { select: { userRoles: true } },
 } as const satisfies Prisma.RoleInclude;
 
 export type RoleWithPermissions = Prisma.RoleGetPayload<{

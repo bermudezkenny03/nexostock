@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 export const userAdminInclude = {
   detail: true,
-  userRoles: {
+  userRole: {
     include: {
       role: true,
     },

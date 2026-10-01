@@ -1,23 +1,35 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayUnique,
   IsArray,
   IsOptional,
   IsString,
   IsUUID,
-  MinLength,
+  MaxLength,
 } from 'class-validator';
+import { IsName, IsOptionalNonNull, Trim } from '../../common/validation';
+import { ROLE_DESCRIPTION_MAX_LENGTH } from './create-role.dto';
 
 export class UpdateRoleDto {
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
+  @ApiPropertyOptional({ example: 'Warehouse manager' })
+  @IsOptionalNonNull()
+  @IsName()
   name?: string;
 
+  @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
+  @Trim()
   @IsString()
-  description?: string;
+  @MaxLength(ROLE_DESCRIPTION_MAX_LENGTH)
+  description?: string | null;
 
-  @IsOptional()
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Replaces the permission set. You can only grant permissions you hold yourself.',
+  })
+  @IsOptionalNonNull()
   @IsArray()
   @ArrayUnique()
   @IsUUID('4', { each: true })
