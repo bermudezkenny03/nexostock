@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { roleCodeFromName } from '../common/utils/code-from-name.util';
+import {
+  normalizeRoleCode,
+  roleCodeFromName,
+} from '../common/utils/code-from-name.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto, UpdateRoleDto } from './dto';
 import { RoleDetailEntity, RoleListItemEntity } from './entities';
@@ -37,7 +40,12 @@ export class RolesService {
   }
 
   async create(dto: CreateRoleDto): Promise<RoleDetailEntity> {
-    const code = roleCodeFromName(dto.name);
+    const code = dto.code
+      ? normalizeRoleCode(dto.code)
+      : roleCodeFromName(dto.name);
+    if (!code) {
+      throw new BadRequestException('Invalid role code');
+    }
     const existing = await this.prisma.role.findUnique({ where: { code } });
     if (existing) {
       throw new ConflictException('Role code already exists');
