@@ -14,17 +14,18 @@ import { userAdminInclude, type UserWithRoles } from './interfaces';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(): Promise<UserListItemEntity[]> {
+  async findAll(businessId: string): Promise<UserListItemEntity[]> {
     const users = await this.prisma.user.findMany({
+      where: { businessId },
       include: userAdminInclude,
       orderBy: { email: 'asc' },
     });
     return users.map((user) => this.toListItem(user));
   }
 
-  async findOne(id: string): Promise<UserDetailEntity> {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+  async findOne(id: string, businessId: string): Promise<UserDetailEntity> {
+    const user = await this.prisma.user.findFirst({
+      where: { id, businessId },
       include: userAdminInclude,
     });
     if (!user) {
@@ -33,7 +34,10 @@ export class UsersService {
     return this.toDetail(user);
   }
 
-  async create(dto: CreateUserDto): Promise<UserDetailEntity> {
+  async create(
+    dto: CreateUserDto,
+    businessId: string,
+  ): Promise<UserDetailEntity> {
     const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -41,7 +45,7 @@ export class UsersService {
     }
 
     if (dto.roleIds?.length) {
-      await this.assertRolesExist(dto.roleIds);
+      await this.assertRolesInBusiness(dto.roleIds, businessId);
     }
 
     const passwordHash = await bcrypt.hash(dto.password, bcryptRounds());
@@ -50,6 +54,7 @@ export class UsersService {
       data: {
         email,
         passwordHash,
+        businessId,
         detail: {
           create: {
             firstName: dto.firstName,
@@ -68,9 +73,13 @@ export class UsersService {
     return this.toDetail(user);
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserDetailEntity> {
-    const existing = await this.prisma.user.findUnique({
-      where: { id },
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    businessId: string,
+  ): Promise<UserDetailEntity> {
+    const existing = await this.prisma.user.findFirst({
+      where: { id, businessId },
       include: { detail: true },
     });
     if (!existing) {
@@ -88,7 +97,7 @@ export class UsersService {
     }
 
     if (dto.roleIds) {
-      await this.assertRolesExist(dto.roleIds);
+      await this.assertRolesInBusiness(dto.roleIds, businessId);
     }
 
     const passwordHash = dto.password
@@ -135,12 +144,15 @@ export class UsersService {
       }
     });
 
-    return this.findOne(id);
+    return this.findOne(id, businessId);
   }
 
-  private async assertRolesExist(roleIds: string[]): Promise<void> {
+  private async assertRolesInBusiness(
+    roleIds: string[],
+    businessId: string,
+  ): Promise<void> {
     const count = await this.prisma.role.count({
-      where: { id: { in: roleIds } },
+      where: { id: { in: roleIds }, businessId },
     });
     if (count !== roleIds.length) {
       throw new NotFoundException('One or more roles not found');
@@ -151,6 +163,7 @@ export class UsersService {
     return {
       id: user.id,
       email: user.email,
+      businessId: user.businessId,
       isActive: user.isActive,
       firstName: user.detail?.firstName ?? null,
       lastName: user.detail?.lastName ?? null,
@@ -163,6 +176,7 @@ export class UsersService {
     return {
       id: user.id,
       email: user.email,
+      businessId: user.businessId,
       isActive: user.isActive,
       firstName: user.detail?.firstName ?? null,
       lastName: user.detail?.lastName ?? null,

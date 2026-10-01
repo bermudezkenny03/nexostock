@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 export const userWithAuthInclude = {
+  business: true,
   detail: true,
   userRoles: {
     include: {

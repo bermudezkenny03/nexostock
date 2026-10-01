@@ -8,6 +8,7 @@ import {
 
 const prisma = new PrismaClient();
 
+const DEFAULT_BUSINESS_ID = '00000000-0000-4000-8000-000000000001';
 const ADMIN_EMAIL = 'admin@nexostock.local';
 const ADMIN_PASSWORD = 'Admin123!';
 
@@ -130,6 +131,85 @@ const EMPLOYEE_PERMISSION_CODES: readonly string[] = [
   Permission.REPORTS_VIEW,
 ];
 
+async function seedRolesForBusiness(
+  businessId: string,
+  permissionRecords: Array<{ id: string; code: string }>,
+): Promise<{ adminRoleId: string; employeeRoleId: string }> {
+  const adminRole = await prisma.role.upsert({
+    where: {
+      businessId_code: { businessId, code: RoleCode.ADMIN },
+    },
+    update: {
+      name: 'Administrator',
+      description: 'Full system access',
+      isSystem: true,
+    },
+    create: {
+      businessId,
+      code: RoleCode.ADMIN,
+      name: 'Administrator',
+      description: 'Full system access',
+      isSystem: true,
+    },
+  });
+
+  const employeeRole = await prisma.role.upsert({
+    where: {
+      businessId_code: { businessId, code: RoleCode.EMPLOYEE },
+    },
+    update: {
+      name: 'Employee',
+      description: 'Standard operational access',
+      isSystem: true,
+    },
+    create: {
+      businessId,
+      code: RoleCode.EMPLOYEE,
+      name: 'Employee',
+      description: 'Standard operational access',
+      isSystem: true,
+    },
+  });
+
+  for (const permission of permissionRecords) {
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: adminRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: adminRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  const employeePermissionIds = permissionRecords
+    .filter((p) => EMPLOYEE_PERMISSION_CODES.includes(p.code))
+    .map((p) => p.id);
+
+  for (const permissionId of employeePermissionIds) {
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: employeeRole.id,
+          permissionId,
+        },
+      },
+      update: {},
+      create: {
+        roleId: employeeRole.id,
+        permissionId,
+      },
+    });
+  }
+
+  return { adminRoleId: adminRole.id, employeeRoleId: employeeRole.id };
+}
+
 async function main(): Promise<void> {
   const permissionRecords: Array<{ id: string; code: string }> = [];
 
@@ -207,71 +287,23 @@ async function main(): Promise<void> {
     await upsertModule(root, null);
   }
 
-  const adminRole = await prisma.role.upsert({
-    where: { code: RoleCode.ADMIN },
+  const business = await prisma.business.upsert({
+    where: { id: DEFAULT_BUSINESS_ID },
     update: {
-      name: 'Administrator',
-      description: 'Full system access',
-      isSystem: true,
+      name: 'NexoStock Demo',
+      isActive: true,
     },
     create: {
-      code: RoleCode.ADMIN,
-      name: 'Administrator',
-      description: 'Full system access',
-      isSystem: true,
+      id: DEFAULT_BUSINESS_ID,
+      name: 'NexoStock Demo',
+      isActive: true,
     },
   });
 
-  const employeeRole = await prisma.role.upsert({
-    where: { code: RoleCode.EMPLOYEE },
-    update: {
-      name: 'Employee',
-      description: 'Standard operational access',
-      isSystem: true,
-    },
-    create: {
-      code: RoleCode.EMPLOYEE,
-      name: 'Employee',
-      description: 'Standard operational access',
-      isSystem: true,
-    },
-  });
-
-  for (const permission of permissionRecords) {
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: adminRole.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: adminRole.id,
-        permissionId: permission.id,
-      },
-    });
-  }
-
-  const employeePermissionIds = permissionRecords
-    .filter((p) => EMPLOYEE_PERMISSION_CODES.includes(p.code))
-    .map((p) => p.id);
-
-  for (const permissionId of employeePermissionIds) {
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: employeeRole.id,
-          permissionId,
-        },
-      },
-      update: {},
-      create: {
-        roleId: employeeRole.id,
-        permissionId,
-      },
-    });
-  }
+  const { adminRoleId } = await seedRolesForBusiness(
+    business.id,
+    permissionRecords,
+  );
 
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
@@ -280,11 +312,13 @@ async function main(): Promise<void> {
     update: {
       passwordHash,
       isActive: true,
+      businessId: business.id,
     },
     create: {
       email: ADMIN_EMAIL,
       passwordHash,
       isActive: true,
+      businessId: business.id,
     },
   });
 
@@ -305,13 +339,13 @@ async function main(): Promise<void> {
     where: {
       userId_roleId: {
         userId: adminUser.id,
-        roleId: adminRole.id,
+        roleId: adminRoleId,
       },
     },
     update: {},
     create: {
       userId: adminUser.id,
-      roleId: adminRole.id,
+      roleId: adminRoleId,
     },
   });
 }

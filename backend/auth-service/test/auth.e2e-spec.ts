@@ -1,9 +1,12 @@
 import 'dotenv/config';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { RoleCode } from '../src/common/rbac/permission.constants';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL?.trim());
@@ -12,6 +15,7 @@ const describeIfDb = hasDatabase ? describe : describe.skip;
 
 describeIfDb('Auth (e2e)', () => {
   let app: INestApplication<App>;
+  const prisma = new PrismaClient();
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -33,6 +37,7 @@ describeIfDb('Auth (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+    await prisma.$disconnect();
   });
 
   it('GET /api/health', () => {
@@ -54,6 +59,8 @@ describeIfDb('Auth (e2e)', () => {
     expect(res.body.accessToken).toEqual(expect.any(String));
     expect(res.body.refreshToken).toEqual(expect.any(String));
     expect(res.body.user.email).toBe('admin@nexostock.local');
+    expect(res.body.user.businessId).toEqual(expect.any(String));
+    expect(res.body.user.businessName).toEqual(expect.any(String));
   });
 
   it('POST /api/auth/refresh and logout', async () => {
@@ -125,7 +132,70 @@ describeIfDb('Auth (e2e)', () => {
       .expect(200)
       .expect((res) => {
         expect(res.body.email).toBe('admin@nexostock.local');
+        expect(res.body.businessId).toBe(login.body.user.businessId);
         expect(res.body.roles).toEqual(expect.arrayContaining(['ADMIN']));
       });
+  });
+
+  it('lists users only within the same business', async () => {
+    const otherBusiness = await prisma.business.create({
+      data: {
+        name: 'E2E Other Business',
+        isActive: true,
+      },
+    });
+
+    const otherAdminRole = await prisma.role.create({
+      data: {
+        businessId: otherBusiness.id,
+        code: RoleCode.ADMIN,
+        name: 'Administrator',
+        isSystem: true,
+      },
+    });
+
+    const passwordHash = await bcrypt.hash('OtherBiz123!', 10);
+    const otherUser = await prisma.user.create({
+      data: {
+        email: `other-biz-${Date.now()}@nexostock.local`,
+        passwordHash,
+        businessId: otherBusiness.id,
+        detail: {
+          create: {
+            firstName: 'Other',
+            lastName: 'User',
+          },
+        },
+        userRoles: {
+          create: { roleId: otherAdminRole.id },
+        },
+      },
+    });
+
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({
+        email: 'admin@nexostock.local',
+        password: 'Admin123!',
+      })
+      .expect(201);
+
+    const listRes = await request(app.getHttpServer())
+      .get('/api/users')
+      .set('Authorization', `Bearer ${login.body.accessToken}`)
+      .expect(200);
+
+    const emails = (listRes.body as Array<{ email: string }>).map((u) => u.email);
+    expect(emails).toContain('admin@nexostock.local');
+    expect(emails).not.toContain(otherUser.email);
+
+    await request(app.getHttpServer())
+      .get(`/api/users/${otherUser.id}`)
+      .set('Authorization', `Bearer ${login.body.accessToken}`)
+      .expect(404);
+
+    await prisma.user.delete({ where: { id: otherUser.id } });
+    await prisma.role.delete({ where: { id: otherAdminRole.id } });
+    await prisma.business.delete({ where: { id: otherBusiness.id } });
   });
 });

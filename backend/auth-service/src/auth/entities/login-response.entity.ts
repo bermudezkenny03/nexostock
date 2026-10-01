@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { ILoginResponse } from '../interfaces';
 import { AuthUserEntity } from './auth-user.entity';
 
-export class LoginResponseEntity {
+export class LoginResponseEntity implements ILoginResponse {
   @ApiProperty()
   accessToken!: string;
 
