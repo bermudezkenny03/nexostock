@@ -1,4 +1,4 @@
-export interface IAuthUser {
+export interface AccessUserProfile {
   id: string;
   email: string;
   businessId: string;
