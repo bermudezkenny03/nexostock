@@ -1,13 +1,13 @@
-export class UserDetailEntity {
-  id!: string;
-  email!: string;
-  businessId!: string;
-  isActive!: boolean;
-  firstName!: string | null;
-  lastName!: string | null;
+import { ApiProperty } from '@nestjs/swagger';
+import { UserListItemEntity } from './user-list-item.entity';
+
+export class UserDetailEntity extends UserListItemEntity {
+  @ApiProperty({ type: String, nullable: true })
   phone!: string | null;
-  roleIds!: string[];
-  roleCodes!: string[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
+
+  @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: Date;
 }

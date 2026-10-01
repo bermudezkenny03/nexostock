@@ -1,30 +1,39 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import { Controller, Get } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { RequirePermissions } from '../common/decorators';
 import { Permission } from '../common/rbac/permission.constants';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { CatalogService } from './catalog.service';
-import type {
-  ModuleTreeNodeEntity,
-  PermissionCatalogItemEntity,
-} from './entities';
+import { ModuleTreeNodeEntity, PermissionCatalogItemEntity } from './entities';
 
 @ApiTags('catalog')
 @ApiBearerAuth()
+@ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
+@ApiForbiddenResponse({
+  description: 'Requires modules.view, users.manage or roles.manage',
+})
+@RequirePermissions(
+  Permission.MODULES_VIEW,
+  Permission.USERS_MANAGE,
+  Permission.ROLES_MANAGE,
+)
 @Controller()
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
   @Get('modules')
-  @RequirePermissions(Permission.MODULES_VIEW, Permission.USERS_MANAGE)
+  @ApiOkResponse({ type: ModuleTreeNodeEntity, isArray: true })
   getModules(): Promise<ModuleTreeNodeEntity[]> {
     return this.catalogService.getModuleTree();
   }
 
   @Get('permissions')
-  @RequirePermissions(Permission.MODULES_VIEW, Permission.USERS_MANAGE)
+  @ApiOkResponse({ type: PermissionCatalogItemEntity, isArray: true })
   getPermissions(): Promise<PermissionCatalogItemEntity[]> {
     return this.catalogService.getPermissions();
   }

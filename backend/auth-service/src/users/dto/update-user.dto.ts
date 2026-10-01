@@ -1,41 +1,68 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayUnique,
-  IsArray,
   IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
   IsUUID,
-  MinLength,
+  MaxLength,
 } from 'class-validator';
+import {
+  EMAIL_MAX_LENGTH,
+  IsName,
+  IsOptionalNonNull,
+  IsStrongPassword,
+  NormalizeEmail,
+  Trim,
+} from '../../common/validation';
+import { PHONE_MAX_LENGTH } from './create-user.dto';
 
 export class UpdateUserDto {
-  @IsOptional()
+  @ApiPropertyOptional({ example: 'user@example.com' })
+  @IsOptionalNonNull()
+  @NormalizeEmail()
   @IsEmail({}, { message: 'email must be a valid email address' })
+  @MaxLength(EMAIL_MAX_LENGTH)
   email?: string;
 
-  @IsOptional()
-  @IsString()
-  @MinLength(8, { message: 'password must be at least 8 characters' })
+  @ApiPropertyOptional({
+    minLength: 8,
+    maxLength: 72,
+    description:
+      'Resets the password of another user. To change your own, use POST /auth/change-password.',
+  })
+  @IsOptionalNonNull()
+  @IsStrongPassword()
   password?: string;
 
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
+  @ApiPropertyOptional({ example: 'Jane' })
+  @IsOptionalNonNull()
+  @IsName()
   firstName?: string;
 
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
+  @ApiPropertyOptional({ example: 'Doe' })
+  @IsOptionalNonNull()
+  @IsName()
   lastName?: string;
 
+  @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(PHONE_MAX_LENGTH)
+  phone?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   isActive?: boolean;
 
-  @IsOptional()
-  @IsArray()
-  @ArrayUnique()
-  @IsUUID('4', { each: true })
-  roleIds?: string[];
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Replaces the user role. The role must belong to the caller business.',
+  })
+  @IsOptionalNonNull()
+  @IsUUID('4', { message: 'roleId must be a UUID' })
+  roleId?: string;
 }
