@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Role } from '@prisma/client';
+import type { JwtPayload } from '../common/interfaces';
 import {
   normalizeRoleCode,
   roleCodeFromName,
@@ -24,7 +27,7 @@ export class RolesService {
     const roles = await this.prisma.role.findMany({
       where: { businessId },
       include: roleWithPermissionsInclude,
-      orderBy: { name: 'asc' },
+      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
     });
     return roles.map((role) => this.toListItem(role));
   }
@@ -35,46 +38,44 @@ export class RolesService {
       include: roleWithPermissionsInclude,
     });
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException('Rol no encontrado');
     }
     return this.toDetail(role);
   }
 
   async create(
     dto: CreateRoleDto,
-    businessId: string,
+    actor: JwtPayload,
   ): Promise<RoleDetailEntity> {
+    const { businessId } = actor;
     const code = dto.code
       ? normalizeRoleCode(dto.code)
       : roleCodeFromName(dto.name);
     if (!code) {
-      throw new BadRequestException('Invalid role code');
-    }
-    const existing = await this.prisma.role.findUnique({
-      where: { businessId_code: { businessId, code } },
-    });
-    if (existing) {
-      throw new ConflictException('Role code already exists');
+      throw new BadRequestException('Código de rol inválido');
     }
 
-    if (dto.permissionIds?.length) {
-      await this.assertPermissionsExist(dto.permissionIds);
+    const existing = await this.prisma.role.findUnique({
+      where: { businessId_code: { businessId, code } },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException('Ya existe un rol con ese código');
     }
+
+    const permissionIds = dto.permissionIds ?? [];
+    await this.assertGrantable(permissionIds, actor);
 
     const role = await this.prisma.role.create({
       data: {
         businessId,
         code,
         name: dto.name,
-        description: dto.description,
+        description: dto.description || null,
         isSystem: false,
-        rolePermissions: dto.permissionIds?.length
-          ? {
-              create: dto.permissionIds.map((permissionId) => ({
-                permissionId,
-              })),
-            }
-          : undefined,
+        rolePermissions: {
+          create: permissionIds.map((permissionId) => ({ permissionId })),
+        },
       },
       include: roleWithPermissionsInclude,
     });
@@ -85,43 +86,34 @@ export class RolesService {
   async update(
     id: string,
     dto: UpdateRoleDto,
-    businessId: string,
+    actor: JwtPayload,
   ): Promise<RoleDetailEntity> {
-    const role = await this.prisma.role.findFirst({
-      where: { id, businessId },
-    });
-    if (!role) {
-      throw new NotFoundException('Role not found');
-    }
-    if (role.isSystem) {
-      throw new BadRequestException('System roles cannot be modified');
-    }
+    const { businessId } = actor;
+    const role = await this.findEditableRole(id, businessId);
 
-    if (dto.permissionIds) {
-      await this.assertPermissionsExist(dto.permissionIds);
+    if (dto.permissionIds !== undefined) {
+      await this.assertGrantable(dto.permissionIds, actor);
     }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.role.update({
-        where: { id },
+        where: { id: role.id },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.description !== undefined && {
-            description: dto.description,
+            description: dto.description || null,
           }),
         },
       });
 
       if (dto.permissionIds !== undefined) {
-        await tx.rolePermission.deleteMany({ where: { roleId: id } });
-        if (dto.permissionIds.length > 0) {
-          await tx.rolePermission.createMany({
-            data: dto.permissionIds.map((permissionId) => ({
-              roleId: id,
-              permissionId,
-            })),
-          });
-        }
+        await tx.rolePermission.deleteMany({ where: { roleId: role.id } });
+        await tx.rolePermission.createMany({
+          data: dto.permissionIds.map((permissionId) => ({
+            roleId: role.id,
+            permissionId,
+          })),
+        });
       }
     });
 
@@ -129,25 +121,62 @@ export class RolesService {
   }
 
   async remove(id: string, businessId: string): Promise<void> {
+    const role = await this.findEditableRole(id, businessId);
+
+    const assigned = await this.prisma.userRole.count({
+      where: { roleId: role.id },
+    });
+    if (assigned > 0) {
+      throw new ConflictException(
+        `El rol está asignado a ${assigned} usuario(s); reasígnalos antes de eliminarlo`,
+      );
+    }
+
+    await this.prisma.role.delete({ where: { id: role.id } });
+  }
+
+  private async findEditableRole(
+    id: string,
+    businessId: string,
+  ): Promise<Role> {
     const role = await this.prisma.role.findFirst({
       where: { id, businessId },
     });
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException('Rol no encontrado');
     }
     if (role.isSystem) {
-      throw new BadRequestException('System roles cannot be deleted');
+      throw new BadRequestException(
+        'Los roles de sistema no se pueden modificar ni eliminar',
+      );
     }
-
-    await this.prisma.role.delete({ where: { id } });
+    return role;
   }
 
-  private async assertPermissionsExist(permissionIds: string[]): Promise<void> {
-    const count = await this.prisma.permission.count({
+  private async assertGrantable(
+    permissionIds: string[],
+    actor: JwtPayload,
+  ): Promise<void> {
+    if (permissionIds.length === 0) {
+      return;
+    }
+
+    const permissions = await this.prisma.permission.findMany({
       where: { id: { in: permissionIds } },
+      select: { code: true },
     });
-    if (count !== permissionIds.length) {
-      throw new NotFoundException('One or more permissions not found');
+    if (permissions.length !== permissionIds.length) {
+      throw new NotFoundException('Uno o más permisos no existen');
+    }
+
+    const held = new Set(actor.permissions);
+    const missing = permissions
+      .map((permission) => permission.code)
+      .filter((code) => !held.has(code));
+    if (missing.length > 0) {
+      throw new ForbiddenException(
+        `No puedes otorgar permisos que no tienes: ${missing.sort().join(', ')}`,
+      );
     }
   }
 
@@ -162,21 +191,14 @@ export class RolesService {
       permissionCodes: role.rolePermissions
         .map((rp) => rp.permission.code)
         .sort(),
+      userCount: role._count.userRoles,
     };
   }
 
   private toDetail(role: RoleWithPermissions): RoleDetailEntity {
     return {
-      id: role.id,
-      businessId: role.businessId,
-      code: role.code,
-      name: role.name,
-      description: role.description,
-      isSystem: role.isSystem,
+      ...this.toListItem(role),
       permissionIds: role.rolePermissions.map((rp) => rp.permissionId),
-      permissionCodes: role.rolePermissions
-        .map((rp) => rp.permission.code)
-        .sort(),
       createdAt: role.createdAt,
       updatedAt: role.updatedAt,
     };

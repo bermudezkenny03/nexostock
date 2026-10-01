@@ -28,9 +28,15 @@ services:
         condition: service_healthy
     environment:
       PORT: "3001"
+      NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgresql://nexostock:nexostock@postgres:5432/nexostock?schema=auth
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-not-for-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_ISSUER: ${JWT_ISSUER:-nexostock-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-nexostock-api}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174}
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
+      RUN_SEED: ${RUN_SEED:-true}
     ports:
       - "3001:3001"
 

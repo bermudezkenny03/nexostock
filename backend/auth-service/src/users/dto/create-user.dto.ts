@@ -1,38 +1,61 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayUnique,
-  IsArray,
   IsEmail,
   IsOptional,
   IsString,
   IsUUID,
-  MinLength,
+  MaxLength,
 } from 'class-validator';
+import {
+  EMAIL_MAX_LENGTH,
+  IsName,
+  IsStrongPassword,
+  NormalizeEmail,
+  Trim,
+} from '../../common/validation';
+
+export const PHONE_MAX_LENGTH = 30;
 
 export class CreateUserDto {
   @ApiProperty({ example: 'user@example.com' })
+  @NormalizeEmail()
   @IsEmail({}, { message: 'email must be a valid email address' })
+  @MaxLength(EMAIL_MAX_LENGTH)
   email!: string;
 
-  @ApiProperty({ minLength: 8, example: 'SecurePass1!' })
-  @IsString()
-  @MinLength(8, { message: 'password must be at least 8 characters' })
+  @ApiProperty({
+    minLength: 8,
+    maxLength: 72,
+    example: 'SecurePass1!',
+    description: '8 to 72 characters, at least one letter and one number.',
+  })
+  @IsStrongPassword()
   password!: string;
 
   @ApiProperty({ example: 'Jane' })
-  @IsString()
-  @MinLength(1, { message: 'firstName must not be empty' })
+  @IsName()
   firstName!: string;
 
   @ApiProperty({ example: 'Doe' })
-  @IsString()
-  @MinLength(1, { message: 'lastName must not be empty' })
+  @IsName()
   lastName!: string;
 
-  @ApiPropertyOptional({ type: [String], format: 'uuid' })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '+57 300 000 0000',
+  })
   @IsOptional()
-  @IsArray()
-  @ArrayUnique()
-  @IsUUID('4', { each: true })
-  roleIds?: string[];
+  @Trim()
+  @IsString()
+  @MaxLength(PHONE_MAX_LENGTH)
+  phone?: string | null;
+
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Exactly one role of the caller business. Only an OWNER can assign OWNER.',
+  })
+  @IsUUID('4', { message: 'roleId must be a UUID' })
+  roleId!: string;
 }

@@ -15,12 +15,23 @@ _Checklist accionable derivada del `plan.md`. Fase 1: solo ítems de documentaci
 - [x] Añadir modelo `Business` y relaciones en `schema.prisma`.
 - [x] Migración: `businesses`, `users.business_id`, `roles.business_id`, unique compuesto en roles (`20251001000000_init_auth`).
 - [x] Script de backfill: negocio por defecto + remapeo de `user_roles`.
-- [x] Actualizar seed: catálogo global + roles por negocio.
+- [x] Actualizar seed: catálogo global + tres roles de sistema por negocio según la matriz de 001 (`OWNER`, `INVENTORY_ADMIN`, `SALES_EMPLOYEE`). Un rol por usuario.
 - [x] Filtrar CRUD de usuarios y roles por `businessId` del token.
 - [x] Extender `JwtPayload` y firma de access token con `businessId`.
 - [x] Exponer `businessId` en login, refresh y perfil (`businessName` incluido).
 - [x] Bloquear login si el negocio está inactivo.
 - [x] Pruebas e2e: aislamiento entre dos negocios en auth.
+- [x] Identidad visual: `primary_color` y `logo_url` en `businesses`, `PATCH /api/business/me`, y login/`me`.
+- [x] `user_roles.business_id` con FKs compuestas a usuario y rol del mismo negocio.
+- [x] `users` y `roles` hacia `businesses` con `ON DELETE RESTRICT`; `refresh_tokens.token_hash` UNIQUE; índice `users(business_id)`.
+- [x] Documentar la desactivación de negocios como pendiente (hace falta administrador de plataforma).
+- [x] Registro self-service de negocios: `POST /api/auth/register` crea negocio, roles de sistema y `OWNER` en una transacción.
+- [x] Permiso `business.manage` (módulo `admin-business`) para `PATCH /api/business/me`.
+- [x] Seguridad de sesión: refresh de un solo uso con rotación atómica y detección de reutilización; `logout-all`; `change-password`; login con tiempo constante.
+- [x] Protección del `OWNER` y prevención de escalada de permisos en usuarios y roles.
+- [x] Esquema: UUID nativos, `timestamptz`, `CHECK` de integridad, `user_roles` con PK `user_id` y `RESTRICT` hacia roles.
+- [x] Guards globales (`@Public()`), `@CurrentUser()`, filtro de errores Prisma → 409/404, `helmet`.
+- [x] Pruebas e2e de registro, sesiones, protección del propietario, escalada, borrado de roles y validación de `null`.
 
 ## Fase 2 — API Gateway
 
@@ -53,7 +64,7 @@ _Checklist accionable derivada del `plan.md`. Fase 1: solo ítems de documentaci
 
 - [ ] Spec separada para `business_user` M:N y selector de negocio activo.
 - [ ] Spec separada para superadministrador de plataforma.
-- [ ] Evaluar onboarding de nuevos negocios sin intervención manual.
+- [x] Onboarding de nuevos negocios sin intervención manual (adelantado a fase 2 con `POST /api/auth/register`).
 
 ## Mantenimiento (checklist recurrente)
 

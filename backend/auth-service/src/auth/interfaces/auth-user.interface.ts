@@ -3,6 +3,8 @@ export interface IAuthUser {
   email: string;
   businessId: string;
   businessName: string;
+  businessPrimaryColor: string | null;
+  businessLogoUrl: string | null;
   firstName: string | null;
   lastName: string | null;
   roles: string[];
