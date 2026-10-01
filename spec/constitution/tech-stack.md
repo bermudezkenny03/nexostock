@@ -77,6 +77,8 @@ La separación podrá realizarse mediante esquemas por dominio, con permisos aco
 
 La independencia completa de las bases de datos se evaluará para futuras versiones. El ORM o mecanismo de acceso a datos aún no está definido.
 
+El aislamiento lógico entre **negocios** (en UI; `Business` / `businessId` en código) — catálogo global de permisos, roles por negocio, filtrado operativo en fase 2 — se describe en [003 · Aislamiento por Negocio](../features/003-negocio-aislamiento/spec.md). En el MVP se asume un solo negocio implícito.
+
 ## 5. Consistencia de ventas e inventario
 
 La coordinación entre ventas e inventario deberá satisfacer estos requisitos propuestos:
