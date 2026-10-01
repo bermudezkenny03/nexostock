@@ -72,7 +72,7 @@ Para cada servicio: índices `(business_id, …)`, pruebas de “UUID válido pe
 - **Un usuario ↔ un negocio en v2** — evita complejidad de sesión; fase 3 introduce M:N si hace falta.
 - **404 ante recurso de otro negocio** — reduce fuga de existencia entre tenants lógicos; unificar con gateway si el equipo prefiere 403 en admin.
 - **Roles clonados por negocio en seed** — más simple que roles “plantilla” referenciados; duplicación acotada a tres roles de sistema.
-- **No superadmin en v2** — creación de segundo negocio vía seed/migración manual o script ops hasta fase 3.
+- **No superadmin en v2** — los negocios nuevos se crean con el registro público `POST /api/auth/register` (que se puede desactivar con `REGISTRATION_ENABLED=false`). Solo la desactivación de negocios espera a fase 3.
 
 ## Riesgos
 

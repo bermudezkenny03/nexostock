@@ -1,6 +1,6 @@
 # 003 · Aislamiento por Negocio (multi-tenant lógico)
 
-**Estado:** en progreso (auth-service fase 2 implementado; gateway y servicios operativos pendientes)
+**Estado:** en progreso (auth-service fase 2 implementado, con registro self-service de negocios; gateway y servicios operativos pendientes)
 
 ## Qué hace
 
@@ -12,7 +12,7 @@ En la interfaz se habla de **Negocio**; en código, APIs, base de datos y tokens
 
 La misión apunta a pequeños y medianos negocios que operan de forma independiente (`constitution/mission.md`). Aunque el MVP puede desplegarse para un solo cliente, el diseño debe permitir alojar varios negocios en la misma instancia sin mezclar información comercial ni credenciales. Este documento fija las reglas antes de que productos, inventario y ventas persistan datos masivos difíciles de migrar.
 
-El patrón de referencia es el de **Propia Arepa** y proyectos similares: una entidad **Negocio** como frontera de datos, usuarios pertenecientes a un negocio y roles definidos **por negocio**, con catálogo global de módulos y permisos. **No** se adopta de entrada el modelo SaaS clásico (tenant + company + superadmin de plataforma + onboarding público); eso queda como fase opcional.
+El patrón de referencia es el de **Propia Arepa** y proyectos similares: una entidad **Negocio** como frontera de datos, usuarios pertenecientes a un negocio y roles definidos **por negocio**, con catálogo global de módulos y permisos. Del modelo SaaS clásico se adopta solo el **registro público de negocios** (`POST /api/auth/register`): cualquiera puede dar de alta su negocio y queda como propietario. **No** se adoptan tenant + company ni superadmin de plataforma; eso queda como fase opcional.
 
 ## Terminología
 
@@ -22,8 +22,8 @@ El patrón de referencia es el de **Propia Arepa** y proyectos similares: una en
 | Identificador del negocio | `businessId` (UUID) | Clave foránea en tablas operativas y en el JWT |
 | Catálogo de permisos | `modules`, `permissions` | Global a la plataforma; mismo árbol para todos los negocios |
 | Rol | `roles` con alcance por negocio | Conjunto de permisos **dentro de un negocio** |
-| Usuario | `users` | Persona con credenciales; en fase 2 pertenece a **un** negocio |
-| Negocio implícito | (sin fila en BD en fase 1) | Estado actual del MVP: un solo negocio asumido |
+| Usuario | `users` | Persona con credenciales; pertenece a **un** negocio |
+| Identidad visual | `primary_color`, `logo_url` | Color `#RRGGBB` y URL del logo del negocio; ambos opcionales |
 
 ## Fases de evolución
 
@@ -31,8 +31,8 @@ El patrón de referencia es el de **Propia Arepa** y proyectos similares: una en
 
 **Alcance:** documentación y convenciones; **sin** cambios obligatorios en esquema ni código.
 
-- Se asume **exactamente un negocio** por despliegue o demostración académica.
-- No existe tabla `businesses` ni columna `businessId` en el `auth-service` actual.
+- Se asumía **exactamente un negocio** por despliegue o demostración académica.
+- En esa fase no había tabla `businesses` ni `businessId`. El auth-service ya no está ahí: ver «Estado actual del auth-service».
 - Los demás servicios, cuando persistan datos, deben diseñarse ya pensando en añadir `businessId` en fase 2 (columna nullable o migración planificada), pero no es requisito del MVP si aún no hay persistencia operativa.
 - La feature [001 · Autenticación y acceso por rol](../001-nombre-feature/spec.md) sigue válida: roles globales en seed, un solo “mundo” de datos.
 
@@ -43,11 +43,11 @@ El patrón de referencia es el de **Propia Arepa** y proyectos similares: una en
 **Alcance:** aislamiento **obligatorio** en auth y en todas las tablas operativas.
 
 1. **Auth (`auth-service`, esquema propio)**
-   - Tabla `businesses` (nombre comercial, identificadores legales opcionales, `isActive`, marcas de tiempo).
+   - Tabla `businesses` (nombre comercial, identificadores legales opcionales, `isActive`, `primaryColor`, `logoUrl`, marcas de tiempo).
    - Columna `users.business_id` NOT NULL (FK a `businesses`).
    - Tabla `roles`: deja de ser global única por `code`; pasa a **`@@unique([businessId, code])`**. Los roles de sistema (`isSystem`) se **siembran por negocio** (propietario, administrador de inventario, empleado de ventas), no una sola fila global.
    - `modules` y `permissions`: **sin** `businessId`; catálogo único.
-   - `user_roles` y `role_permissions`: siguen enlazando usuario ↔ rol ↔ permiso; el rol ya está acotado al negocio del usuario.
+   - `user_roles` guarda `business_id` y enlaza usuario y rol del mismo negocio (FKs compuestas). `role_permissions` enlaza rol ↔ permiso.
    - Validación de negocio: todo usuario activo tiene `businessId`; las consultas de usuarios y roles del API filtran por el negocio del solicitante (propietario/administración).
 
 2. **JWT y perfil**
@@ -76,40 +76,98 @@ No forma parte de v2 salvo decisión explícita del equipo.
 - Tabla **`business_user`** (M:N): un mismo login en varios negocios con rol distinto en cada uno.
 - **`lastActiveBusinessId`** (o equivalente en sesión) para cambiar de negocio sin re-autenticarse.
 - **Superadministrador de plataforma**: usuario sin negocio operativo o con flag `isPlatformAdmin`, capaz de listar/crear negocios y usuarios de soporte; **no** mezclado con el rol “propietario” del negocio.
-- Onboarding self-service, facturación por tenant, subdominios por negocio: fuera de alcance hasta nueva spec.
+- Facturación por tenant, subdominios por negocio: fuera de alcance hasta nueva spec. (El onboarding self-service ya está en fase 2: ver «Registro de negocios».)
 
-## Estado actual del auth-service (línea base fase 1)
+## Estado actual del auth-service (fase 2 implementada)
 
-El esquema Prisma vigente define `User` sin `businessId`, `Role.code` único global y catálogo `Module` / `Permission` global. El JWT transporta `sub`, `email`, `roles` y `permissions` sin `businessId`. Cualquier implementación de fase 2 parte de esta línea base y requiere migraciones y actualización de emisión/validación de tokens.
+El `auth-service` ya aísla por negocio. Una sola migración (`20251001000000_init_auth`) crea el esquema completo; detalle de rutas en `backend/auth-service/README.md`.
 
-## Cambios de esquema previstos (fase 2, auth)
+### Datos
 
-Resumen orientativo (detalle en `plan.md` al activar v2):
+- **`businesses`:** nombre (no vacío), datos legales opcionales, `is_active`, `primary_color` (`#RRGGBB` o null, validado también con `CHECK`) y `logo_url` (http/https o null).
+- **Tipos de columna:** los IDs son `UUID` nativos y las fechas `timestamptz`.
+- **Pertenencia al negocio:** `users.business_id` y `roles.business_id` son NOT NULL, con FK a `businesses` y `ON DELETE RESTRICT`.
+- **Email:** único en toda la instalación y siempre en minúsculas (`CHECK`).
+- **Roles:** únicos por `(business_id, code)`, con código en `A-Z0-9_`. `modules` y `permissions` siguen globales.
+- **Rol del usuario:**
+  - `user_roles` tiene una fila por usuario (PK `user_id`) y guarda `business_id`.
+  - Sus FKs compuestas a `users(id, business_id)` y `roles(id, business_id)` impiden que un usuario reciba un rol de otro negocio.
+  - La FK hacia el rol es `RESTRICT`: un rol asignado no se puede borrar.
+- **Refresh tokens:** `token_hash` es UNIQUE y existe `CHECK (expires_at > created_at)`.
+
+### Registro de negocios
+
+`POST /api/auth/register` es público y crea, en una sola transacción:
+
+1. el negocio;
+2. sus tres roles de sistema;
+3. el primer usuario con rol `OWNER`.
+
+Responde con la sesión ya iniciada. Se apaga con `REGISTRATION_ENABLED=false` y tiene un límite de 5 registros por hora y por IP. La misma función (`syncSystemRoles`) siembra los roles en el registro y en el seed, así que todos los negocios comparten la misma matriz.
+
+### Sesión y JWT
+
+- El JWT lleva `sub`, `email`, `businessId`, `roles` y `permissions`. Login y `GET /api/auth/me` añaden `businessName`, `businessPrimaryColor` y `businessLogoUrl`.
+- Refresh tokens de un solo uso, con rotación atómica. Si se reutiliza uno ya usado, se cierran todas las sesiones del usuario.
+- Además: `POST /api/auth/logout-all` y `POST /api/auth/change-password`.
+- El login tarda lo mismo exista o no el email, para no revelar qué cuentas existen.
+
+### Administración dentro del negocio
+
+- `GET /api/business/me` está disponible para cualquier usuario del negocio. `PATCH /api/business/me` exige el permiso `business.manage` y no acepta `isActive`.
+- Solo un `OWNER` puede crear, editar o asignar cuentas `OWNER`.
+- Nadie puede desactivarse, cambiarse el rol ni resetearse la contraseña desde la administración de usuarios.
+- El negocio siempre conserva un `OWNER` activo. La comprobación bloquea la fila del negocio para resistir peticiones concurrentes.
+- Un rol solo puede otorgar permisos que tenga quien lo crea o edita, lo que impide la escalada de privilegios.
+
+## Decisiones
+
+- **Email global único.** Una instalación, muchas empresas; el mismo email no se repite en otro negocio.
+- **Un usuario, un negocio y un rol.** `users.business_id` es obligatorio. `user_roles` tiene como mucho una fila por usuario. Los roles de sistema son Propietario (`OWNER`), Administrador de inventario (`INVENTORY_ADMIN`) y Empleado de ventas (`SALES_EMPLOYEE`), con la matriz de la feature 001. No hay tabla de membresía.
+- **Identidad visual.** `primary_color` y `logo_url` viven en `businesses`. El color se valida como `#RRGGBB` y se guarda en mayúsculas. El logo es una URL http/https (sin subida de archivo). `null` los borra. Login y `/auth/me` los exponen junto al nombre.
+- **Membresía y cambio de negocio: fase 3.** `business_user` (M:N), elegir negocio en el login y cambiar de negocio no se construyen ahora.
+- **Alta de negocios: self-service.** El profesor pide un sistema multi-tenant, y un tenant que solo se crea desde el seed no lo es. `POST /api/auth/register` crea el negocio con su propietario sin necesitar un administrador de plataforma. Se puede cerrar con `REGISTRATION_ENABLED=false`.
+- **Desactivación de negocios: pendiente.** Cambiar `isActive` exige un administrador de plataforma por encima de los negocios, y ese rol no existe. Un admin del negocio no puede desactivar el suyo en `PATCH /api/business/me`: se quedaría fuera.
+- **`business.manage` separado de `users.manage`.** Editar la identidad del negocio es un permiso propio. Por defecto solo lo tiene `OWNER`.
+- **Protección del propietario.** RBAC no basta: con `users.manage` se podría cambiar la contraseña del dueño o ascenderse a `OWNER`. Por eso las cuentas `OWNER` solo las gestiona otro `OWNER`, y nadie puede otorgar permisos que no tenga.
+
+## Esquema auth (fase 2)
 
 ```text
 businesses
-  id, name, legal_name?, tax_id?, is_active, created_at, updated_at
+  id UUID, name (CHECK no vacío), legal_name?, tax_id?,
+  primary_color? (CHECK #RRGGBB), logo_url?, is_active, created_at, updated_at (timestamptz)
 
 users
-  + business_id → businesses.id (NOT NULL)
+  business_id → businesses.id (NOT NULL, ON DELETE RESTRICT)
+  UNIQUE (id, business_id)
+  INDEX (business_id)
+  email UNIQUE global, CHECK email = lower(email)
+  last_login_at?
 
 roles
-  + business_id → businesses.id (NOT NULL)
-  - @@unique([code])
-  + @@unique([businessId, code])
+  business_id → businesses.id (NOT NULL, ON DELETE RESTRICT)
+  UNIQUE (business_id, code), CHECK code ~ '^[A-Z0-9_]+$'
+  UNIQUE (id, business_id)
+
+user_roles                         (un rol por usuario)
+  PK (user_id)
+  FK (user_id, business_id) → users(id, business_id)   ON DELETE CASCADE
+  FK (role_id, business_id) → roles(id, business_id)   ON DELETE RESTRICT
+  INDEX (role_id, business_id)
+
+refresh_tokens
+  token_hash UNIQUE (SHA-256), CHECK expires_at > created_at
 
 modules, permissions
-  (sin cambios de alcance)
-
-user_roles, role_permissions, refresh_tokens, user_details
-  (sin business_id directo; aislamiento vía user → business y role → business)
+  globales, sin business_id
 ```
 
 Reglas adicionales:
 
-- Un usuario solo puede asignarse roles cuyo `businessId` coincida con el suyo.
-- El propietario gestiona usuarios **solo de su negocio**; no puede ver emails de otros negocios.
-- Desactivar un negocio (`businesses.isActive = false`) impide login de sus usuarios (comportamiento a especificar en criterios de aceptación).
+- Un usuario solo puede asignarse roles cuyo `businessId` coincida con el suyo (API y FK compuesta).
+- El administrador gestiona usuarios **solo de su negocio**; no puede ver emails de otros negocios.
+- Un negocio con `is_active = false` impide el login y el refresh de sus usuarios. Cambiar ese flag no está expuesto al admin del negocio.
 
 ## Otros servicios (fase 2)
 
@@ -162,7 +220,7 @@ Datos de prueba existentes permanecen en el negocio por defecto; no se pierden u
 | Roles | Por negocio; permisos globales | A menudo por tenant + roles de plataforma |
 | Catálogo de features | Módulos/permisos globales | A veces por plan o tenant |
 | Superadmin plataforma | Fase 3 opcional | Suele existir desde v1 |
-| Onboarding | Propietario crea usuarios (001) | Registro público, invitaciones |
+| Onboarding | Registro público del negocio (`POST /api/auth/register`); el propietario crea usuarios (001) | Registro público, invitaciones |
 | FK entre microservicios | No; UUID + filtro `businessId` | Igual en muchos diseños distribuidos |
 | Sucursales | Fuera de alcance (misión) | A veces “sites” bajo tenant |
 
@@ -174,22 +232,32 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 
 ### Negocio y usuarios
 
-- [ ] Existe al menos un registro en `businesses` y todo usuario activo tiene `businessId` válido.
-- [ ] Un propietario autenticado solo lista, crea, edita y desactiva usuarios de su negocio.
-- [ ] No es posible asignar a un usuario un rol cuyo `businessId` difiera del suyo.
-- [ ] Con un negocio desactivado, sus usuarios no pueden iniciar sesión.
+- [x] Existe al menos un registro en `businesses` y todo usuario activo tiene `businessId` válido.
+- [x] Un propietario autenticado solo lista, crea, edita y desactiva usuarios de su negocio.
+- [x] No es posible asignar a un usuario un rol cuyo `businessId` difiera del suyo.
+- [x] Con un negocio desactivado, sus usuarios no pueden iniciar sesión.
 
 ### JWT y gateway
 
-- [ ] Tras login, el access token incluye `businessId` coherente con la base de datos.
+- [x] Tras login, el access token incluye `businessId` coherente con la base de datos.
 - [ ] Una solicitud con token válido de otro negocio no puede leer ni modificar recursos operativos ajenos aunque conozca el UUID del recurso.
-- [ ] El cliente no puede sustituir el negocio enviando otro `businessId` en el cuerpo o query en operaciones normales.
+- [x] El cliente no puede sustituir el negocio enviando otro `businessId` en el cuerpo o query en operaciones normales de auth.
 
 ### Roles y permisos
 
-- [ ] Los códigos de rol (`OWNER`, etc.) pueden repetirse en distintos negocios pero son únicos dentro del mismo negocio.
-- [ ] El catálogo de módulos y permisos es idéntico para todos los negocios; los cambios de permisos del rol afectan solo al negocio del rol editado.
-- [ ] La matriz de permisos de la feature 001 se cumple **dentro de cada negocio**.
+- [x] Los códigos de rol pueden repetirse en distintos negocios pero son únicos dentro del mismo negocio.
+- [x] El catálogo de módulos y permisos es idéntico para todos los negocios; los cambios de permisos del rol afectan solo al negocio del rol editado.
+- [x] La matriz de la feature 001 se cumple dentro de cada negocio con los roles fijos `OWNER`, `INVENTORY_ADMIN` y `SALES_EMPLOYEE`.
+
+### Registro y seguridad de cuentas
+
+- [x] Un visitante puede registrar un negocio nuevo y queda como `OWNER` con los tres roles de sistema creados.
+- [x] El negocio registrado no ve usuarios ni roles de otros negocios (y viceversa).
+- [x] Un refresh token solo se puede usar una vez; reutilizarlo cierra todas las sesiones del usuario.
+- [x] Un usuario sin rol `OWNER` no puede crear, editar ni asignar cuentas `OWNER`.
+- [x] Nadie puede otorgar a un rol permisos que no tenga.
+- [x] Un rol asignado no se puede borrar.
+- [x] Los campos obligatorios enviados como `null` responden `400`, no `500`.
 
 ### Datos operativos
 
@@ -203,20 +271,21 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 
 ## Fuera de alcance
 
-- Fase 1: implementación de tabla `businesses` o filtros por `businessId`.
 - Sucursales o almacenes múltiples bajo un mismo negocio (`constitution/mission.md`).
 - Facturación, límites por plan o cuotas por negocio.
-- Fase 3 completa (M:N usuario–negocio, superadmin) salvo spec futura.
+- Fase 3: membresía `business_user`, elegir negocio al iniciar sesión y cambiar de negocio.
+- Desactivar o reactivar un negocio (`isActive`): pendiente de un administrador de plataforma. No hay endpoint para ello.
+- Subida de archivo de logo; solo URL.
 - Replicación geográfica o base de datos dedicada por negocio.
-- Cambios de código en este entregable: **solo documentación**.
+- Aislamiento en gateway y servicios operativos (productos, inventario, ventas, reportes): todavía pendiente.
 
 ## Decisiones registradas
 
 - **UI “Negocio”, código `Business` / `businessId`** — coherencia con usuarios hispanohablantes y convención de carpetas en inglés (`tech-stack.md`).
 - **Permisos y módulos globales; roles por negocio** — un solo árbol RBAC que mantener; personalización por negocio vía roles, no duplicando permisos.
 - **Sin FK cross-schema** — alinea microservicios con PostgreSQL compartido o esquemas separados (`tech-stack.md`, sección 4).
-- **Negocio implícito en MVP** — no retrasar entrega académica; fase 2 activada cuando haya segundo cliente o requisito de hosting compartido.
-- **Patrón Propia Arepa** — entidad Negocio acotada; no adoptar tenant+company+superadmin en v2.
+- **Fase 2 de auth ya implementada** — el negocio no es implícito en este servicio; el JWT lleva `businessId`.
+- **Patrón Propia Arepa con registro self-service** — entidad Negocio acotada; no se adopta tenant+company+superadmin en v2. Los negocios se crean con `POST /api/auth/register`; el administrador de plataforma queda pendiente y será el único que pueda desactivarlos.
 
 ## Documentos relacionados
 

@@ -55,6 +55,8 @@ El frontend se comunicará con el **API Gateway**, que será el punto de entrada
 | --- | --- |
 | `api-gateway` | Recibir solicitudes del frontend, dirigirlas al servicio correspondiente y aplicar controles comunes de acceso y validación. |
 | `auth-service` | Autenticar usuarios, gestionar credenciales y roles y emitir o validar tokens según el diseño acordado. |
+
+El access token es un JWT **HS256** firmado con el `JWT_SECRET` compartido. Emisor (`iss`) `nexostock-auth` (`JWT_ISSUER`) y audiencia (`aud`) `nexostock-api` (`JWT_AUDIENCE`). Caduca según `JWT_EXPIRES_IN` (por defecto 15 minutos). Claims: `sub`, `email`, `businessId`, `roles`, `permissions`. Cada servicio filtra sus datos por el `businessId` del token y autoriza con los códigos de `permissions`. El detalle y la matriz de códigos están en `backend/auth-service/README.md`.
 | `products-service` | Administrar productos, categorías, descripciones, precios y estado de los productos. |
 | `inventory-service` | Administrar existencias, movimientos, niveles mínimos y disponibilidad. |
 | `sales-service` | Registrar ventas y sus detalles, calcular totales y coordinar la actualización del inventario. |
