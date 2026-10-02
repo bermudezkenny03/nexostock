@@ -215,6 +215,25 @@ Los e2e cubren:
 
 La imagen usa Node 22, corre con un usuario sin privilegios y declara un `HEALTHCHECK`. Al arrancar ejecuta `prisma migrate deploy`, después el seed **solo si `RUN_SEED=true`**, y luego Nest. Compose local pone `RUN_SEED=true` y `NODE_ENV=development`.
 
+El `Dockerfile` tiene tres etapas: `builder` compila el código, `prod-deps` instala solo las dependencias de producción y la imagen final copia el resultado. Así las herramientas de compilación (`python3`, `make`, `g++`) y la caché de npm no llegan a la imagen final.
+
+La imagen está publicada en Docker Hub como `andresbd2480/nexostock-auth-service`. Desde la raíz del repo:
+
+```bash
+docker compose up -d                          # descarga la imagen si no la tienes en local
+docker compose up -d --build                  # construye con tu código local
+AUTH_SERVICE_TAG=v0.0.1 docker compose up -d  # usa una versión concreta (por defecto: latest)
+```
+
+Para publicar una versión nueva, sube `version` en `package.json` y:
+
+```bash
+docker build -t andresbd2480/nexostock-auth-service:v<versión> backend/auth-service
+docker tag andresbd2480/nexostock-auth-service:v<versión> andresbd2480/nexostock-auth-service:latest
+docker push andresbd2480/nexostock-auth-service:v<versión>
+docker push andresbd2480/nexostock-auth-service:latest
+```
+
 En producción:
 
 - `NODE_ENV=production`
