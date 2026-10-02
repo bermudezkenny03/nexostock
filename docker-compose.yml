@@ -19,6 +19,7 @@ services:
       start_period: 10s
 
   auth-service:
+    image: andresbd2480/nexostock-auth-service:${AUTH_SERVICE_TAG:-latest}
     build:
       context: ./backend/auth-service
       dockerfile: Dockerfile
