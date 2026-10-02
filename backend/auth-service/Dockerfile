@@ -13,24 +13,35 @@ RUN npx prisma generate
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS production
+# Production node_modules are assembled in their own stage so the build
+# toolchain and the npm cache never reach the final image.
+FROM node:22-alpine AS prod-deps
 
-RUN apk add --no-cache python3 make g++ openssl
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
-
-ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm rebuild bcrypt --build-from-source
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+
+FROM node:22-alpine AS production
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json ./
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
 
 USER node
 
