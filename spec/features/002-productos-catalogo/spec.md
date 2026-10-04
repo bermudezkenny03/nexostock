@@ -12,20 +12,31 @@ La misión de NexoStock exige un flujo productos–inventario–ventas coherente
 
 ## Aislamiento por negocio
 
-Las reglas completas están en [003 · Aislamiento por Negocio](../003-negocio-aislamiento/spec.md). Resumen para persistencia en `products-service`:
+Las reglas completas están en [003 · Aislamiento por Negocio](../003-negocio-aislamiento/spec.md). Como `auth-service` ya emite tokens con `businessId`, el escenario de "negocio único implícito" de la fase 1 ya no aplica: `products-service` nace multi-negocio.
 
-**Fase 1 (MVP):** se asume un **negocio único implícito** por despliegue. No es obligatorio tener columna `business_id` en la primera migración si el equipo entrega el MVP sin multi-tenant, pero **toda tabla nueva** de productos o categorías **debe** incluir `business_id` nullable **o** documentar en el plan de migración la columna prevista para v2 (backfill con un UUID de negocio por defecto).
+- `business_id` NOT NULL en todas las tablas desde la primera migración, con índices compuestos donde aplique (p. ej. `UNIQUE (business_id, sku)`).
+- **Toda** consulta y mutación filtra por el `businessId` del JWT. Las creaciones lo toman del token, nunca del cliente.
+- Un producto de otro negocio responde `404`, aunque el UUID exista.
+- Las funciones del servicio reciben `businessId` como parámetro obligatorio, para que olvidar el filtro no compile.
 
-**Fase 2 (v2):** `business_id` NOT NULL en tablas operativas; **toda** consulta y mutación filtra por el `businessId` del JWT. Las creaciones fijan `business_id` desde el contexto del token, no desde el cliente. Índices compuestos donde aplique (p. ej. `(business_id, sku)`).
+Las specs futuras de **inventario** y **ventas** deben repetir esta sección (o enlazar a 003) antes de persistir datos.
 
-Las specs futuras de **inventario** y **ventas** deben repetir esta sección (o enlazar a 003) antes de persistir datos masivos.
+## Infraestructura común
+
+`products-service` es el primer servicio operativo y debe nacer sobre lo definido en [005 · API Gateway y comunicación interna](../005-api-gateway-comunicacion/spec.md):
+
+- usa `service-kit` para verificar el JWT (RS256), el ámbito (`BUSINESS` por defecto), los permisos y el formato de errores;
+- no publica puerto: se accede a través del gateway, que enruta `/api/products/**` y `/api/categories/**`;
+- rechaza tokens de plataforma ([004](../004-administracion-plataforma/spec.md)): la plataforma no opera catálogos;
+- los listados usan el formato de página común `{ items, total, page, pageSize }`.
 
 ## Criterios de aceptación
 
 _Especificación incompleta: ampliar antes de implementar `products-service`. Los criterios finales deben alinearse con la misión (catálogo usable por inventario y ventas) y con la matriz de permisos de la feature 001._
 
 - [ ] (stub) Un administrador de inventario o propietario puede crear, editar y desactivar productos según permisos de la feature 001.
-- [ ] (stub) Los productos referenciados en inventario y ventas pertenecen al mismo ámbito de negocio definido en 003 (fase 2: mismo `businessId` del token).
+- [ ] (stub) Los productos referenciados en inventario y ventas pertenecen al mismo negocio: mismo `businessId` del token (003).
+- [ ] (stub) Un token de plataforma recibe `403` en todas las rutas de productos y categorías (004, 005).
 
 ## Fuera de alcance (borrador)
 
@@ -36,5 +47,6 @@ _Especificación incompleta: ampliar antes de implementar `products-service`. Lo
 ## Documentos relacionados
 
 - [003 · Aislamiento por Negocio](../003-negocio-aislamiento/spec.md)
+- [005 · API Gateway y comunicación interna](../005-api-gateway-comunicacion/spec.md)
 - [001 · Autenticación y acceso por rol](../001-nombre-feature/spec.md)
 - [Misión y alcance](../../constitution/mission.md)
