@@ -61,18 +61,16 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse._
 
 ## Fuera de alcance
 
-- Recuperación de contraseña por correo o mensaje (backlog). La recuperación asistida por el equipo de NexoStock para propietarios se define en [004](../004-administracion-plataforma/spec.md).
-- Registro público de empleados: dentro de un negocio, solo el propietario crea cuentas. El registro público de **negocios** (que crea al primer propietario) se define en [003](../003-negocio-aislamiento/spec.md).
+- Recuperación de contraseña por correo o mensaje (backlog).
+- Registro público de usuarios: solo el propietario crea cuentas.
 - Doble factor de autenticación e inicio de sesión con proveedores externos.
 - Permisos personalizados por usuario: solo los tres roles fijos.
 - Bitácora detallada de auditoría de acciones (la trazabilidad de ventas e inventario se cubre en sus propias features).
 - Administración de varias sucursales (`constitution/mission.md`, "Qué NO es").
 
-## Decisiones tomadas
+## Decisiones pendientes
 
-_Antes figuraban como pendientes; quedaron resueltas al implementar `auth-service` (detalle en `backend/auth-service/README.md`)._
-
-- **Sesión:** access token de 15 minutos (`JWT_EXPIRES_IN`) y refresh token de 7 días (`REFRESH_EXPIRES_IN`), de un solo uso y con rotación. Cerrar sesión revoca el refresh token; `logout-all` revoca todos. La firma pasa a RS256 en [005](../005-api-gateway-comunicacion/spec.md).
-- **Contraseñas:** hash con bcrypt; de 8 a 72 caracteres, con al menos una letra y un número.
-- **Primer propietario:** lo crea el registro público de negocios ([003](../003-negocio-aislamiento/spec.md)); en desarrollo, el seed crea un negocio demo.
-- **Identificador de acceso:** el correo electrónico, único en toda la plataforma.
+- Vigencia de la sesión o del token y comportamiento exacto del cierre de sesión.
+- Mecanismo de protección de contraseñas (hash) y política mínima de contraseña.
+- Cómo se crea el primer propietario al poner el sistema en marcha.
+- Si el identificador de acceso es correo electrónico o nombre de usuario.
