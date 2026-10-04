@@ -9,7 +9,6 @@ import { BusinessProvisioningService } from '../business/business-provisioning.s
 import { AccessService } from '../common/access';
 import { registrationEnabled } from '../common/config/auth.config';
 import { bcryptRounds } from '../common/config/bcrypt.config';
-import { ErrorCode } from '../common/filters/http-exception.filter';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChangePasswordDto,
@@ -52,10 +51,7 @@ export class AuthService {
     }
 
     if (!user.isActive) {
-      throw new ForbiddenException({
-        message: 'El usuario está inactivo',
-        code: ErrorCode.USER_INACTIVE,
-      });
+      throw new ForbiddenException('El usuario está inactivo');
     }
     if (!user.business.isActive) {
       throw new ForbiddenException('El negocio está inactivo');
