@@ -202,8 +202,16 @@ npm run bootstrap
 
 | Cuenta | Contraseña | Rol | Negocio |
 | --- | --- | --- | --- |
-| `admin@nexostock.local` | `Admin123!` | `OWNER` | `NexoStock Demo` |
 | `superadmin@nexostock.local` | `SuperAdmin123!` | `SUPER_ADMIN` | `NexoStock` |
+| `admin@nexostock.local` | `Admin123!` | `OWNER` | `NexoStock Demo` |
+| `dueno@donpepe.local` | `Demo123!` | `OWNER` | `Tienda Don Pepe` |
+| `inventario@donpepe.local` | `Demo123!` | `INVENTORY_ADMIN` | `Tienda Don Pepe` |
+| `ventas@donpepe.local` | `Demo123!` | `SALES_EMPLOYEE` | `Tienda Don Pepe` |
+| `dueno@ellapiz.local` | `Demo123!` | `OWNER` | `Papelería El Lápiz` |
+| `inventario@ellapiz.local` | `Demo123!` | `INVENTORY_ADMIN` | `Papelería El Lápiz` |
+| `ventas@ellapiz.local` | `Demo123!` | `SALES_EMPLOYEE` | `Papelería El Lápiz` |
+
+Los negocios demo tienen IDs fijos (`…0001`, `…0002`, `…0003`), así que correr el seed otra vez no los duplica.
 
 ## Arranque local
 
