@@ -115,9 +115,9 @@ Un recurso de otro negocio responde `404`, nunca `403`, para no revelar que exis
 
 Además del permiso `users.manage`, se aplican estas reglas:
 
-- **Propietarios:** solo un `OWNER` puede crear, editar o asignar cuentas `OWNER`. Así se evita que un administrador con `users.manage` le cambie la contraseña al dueño o se ascienda a sí mismo. → `403`
+- **Roles privilegiados (`OWNER` y `SUPER_ADMIN`):** solo quien tiene uno de ellos puede crear, editar o asignar cuentas con esos roles. Así se evita que un administrador con `users.manage` le cambie la contraseña al dueño o se ascienda a sí mismo. → `403`
 - **Autoedición:** nadie puede desactivarse, cambiarse el rol ni resetearse la contraseña desde `/api/users`. La contraseña propia se cambia en `/auth/change-password`. → `403`
-- **Último propietario:** el negocio nunca se queda sin un `OWNER` activo. La comprobación bloquea la fila del negocio para que dos peticiones simultáneas no se la salten. → `409`
+- **Último propietario:** el negocio nunca se queda sin un usuario activo con rol privilegiado. La comprobación bloquea la fila del negocio para que dos peticiones simultáneas no se la salten. → `409`
 - **Sesiones:** cambiar el rol, el email o la contraseña de un usuario, o desactivarlo, revoca todos sus refresh tokens.
 - **Campos nulos:** los campos obligatorios no aceptan `null` (`400`). Solo `phone` acepta `null`, para borrarlo.
 
@@ -136,6 +136,17 @@ Además del permiso `users.manage`, se aplican estas reglas:
 | `INVENTORY_ADMIN` | Administrador de inventario | `products.view`, `products.manage`, `inventory.view`, `inventory.manage` |
 | `SALES_EMPLOYEE` | Empleado de ventas | `products.view`, `sales.view`, `sales.manage` |
 
+### Equipo de NexoStock (`SUPER_ADMIN`)
+
+El equipo de NexoStock vive en un negocio más, `NexoStock` (`PLATFORM_BUSINESS_ID` en `permission.constants.ts`), con un solo rol de sistema:
+
+| Código | Nombre | Permisos |
+| --- | --- | --- |
+| `SUPER_ADMIN` | Superadministrador | `users.manage`, `roles.manage`, `business.manage`, `modules.view` y `platform.manage` |
+
+- Dentro de su negocio usa las mismas rutas que un dueño (`/api/users`, `/api/roles`, `/api/business/me`) para administrar a su propio equipo. No tiene permisos de productos, inventario, ventas ni reportes: su negocio no es una tienda.
+- `platform.manage` solo puede existir en roles del negocio NexoStock: no aparece en el catálogo de las tiendas, y asignarlo a un rol de tienda responde `403`, lo intente quien lo intente.
+
 ### Catálogo global
 
 | Método | Ruta | Permiso |
@@ -143,6 +154,8 @@ Además del permiso `users.manage`, se aplican estas reglas:
 | `GET` | `/api/modules` | `modules.view`, `users.manage` o `roles.manage` |
 | `GET` | `/api/permissions` | `modules.view`, `users.manage` o `roles.manage` |
 | `GET` | `/api/health` | público |
+
+El módulo `platform` y el permiso `platform.manage` solo se listan a los usuarios del negocio de NexoStock.
 
 ## Contrato JWT para los demás servicios
 
@@ -153,7 +166,9 @@ Además del permiso `users.manage`, se aplican estas reglas:
 - Caducidad: `JWT_EXPIRES_IN`, por defecto `15m`. Los cambios de rol o de permisos llegan al token en el siguiente refresh. El refresh token es opaco, no es un JWT.
 - Cada servicio filtra **todas** sus consultas por el `businessId` del token y nunca acepta un `businessId` enviado por el cliente.
 
-Códigos de permiso: `dashboard.view`, `dashboard.manage`, `products.view`, `products.manage`, `inventory.view`, `inventory.manage`, `sales.view`, `sales.manage`, `reports.view`, `reports.manage`, `users.manage`, `roles.manage`, `business.manage`, `modules.view`.
+Códigos de permiso: `dashboard.view`, `dashboard.manage`, `products.view`, `products.manage`, `inventory.view`, `inventory.manage`, `sales.view`, `sales.manage`, `reports.view`, `reports.manage`, `users.manage`, `roles.manage`, `business.manage`, `modules.view` y `platform.manage` (solo `SUPER_ADMIN`).
+
+Los errores pueden traer un campo `code` estable para que el cliente no dependa del texto del mensaje. Por ahora: `USER_INACTIVE` en el login de un usuario desactivado.
 
 ## Base de datos (esquema `auth`)
 
@@ -167,20 +182,28 @@ Códigos de permiso: `dashboard.view`, `dashboard.manage`, `products.view`, `pro
   - `expires_at > created_at` en los refresh tokens.
 - Se guarda solo el hash SHA-256 de cada refresh token. Al emitir uno nuevo se borran los ya expirados de ese usuario.
 
-## Seed (solo desarrollo)
+## Bootstrap (todos los entornos)
 
-`src/seed.ts` es idempotente y **se niega a ejecutarse con `NODE_ENV=production`**. Hace tres cosas:
+`src/bootstrap.ts` corre en cada arranque, también en producción, y es idempotente:
 
 1. Crea o actualiza el catálogo global de módulos y permisos.
-2. Sincroniza los roles de sistema de **todos** los negocios con la matriz vigente, así un permiso nuevo llega también a los negocios que ya existían.
-3. Crea el negocio demo y su administrador si no existen. No vuelve a escribir la contraseña de un administrador que ya existe.
+2. Asegura el negocio `NexoStock` del equipo de plataforma.
+3. Sincroniza los roles de sistema de **todos** los negocios con la matriz vigente, así un permiso nuevo llega también a los negocios que ya existían.
 
-Datos del negocio demo:
+No crea usuarios, salvo que reciba `SUPER_ADMIN_EMAIL` y `SUPER_ADMIN_PASSWORD`: en ese caso crea el `SUPER_ADMIN` si no existe y nunca sobrescribe una cuenta. En producción rechaza la contraseña de desarrollo. Opcionales: `SUPER_ADMIN_FIRST_NAME` y `SUPER_ADMIN_LAST_NAME`.
 
-- Email: `admin@nexostock.local`
-- Contraseña: `Admin123!`
-- Rol: `OWNER`
-- Negocio: `NexoStock Demo`
+```bash
+npm run bootstrap
+```
+
+## Seed (solo desarrollo)
+
+`src/seed.ts` ejecuta el bootstrap y agrega cuentas con contraseñas conocidas. **Se niega a ejecutarse con `NODE_ENV=production`** y no vuelve a escribir la contraseña de una cuenta que ya existe.
+
+| Cuenta | Contraseña | Rol | Negocio |
+| --- | --- | --- | --- |
+| `admin@nexostock.local` | `Admin123!` | `OWNER` | `NexoStock Demo` |
+| `superadmin@nexostock.local` | `SuperAdmin123!` | `SUPER_ADMIN` | `NexoStock` |
 
 ## Arranque local
 
@@ -207,13 +230,15 @@ Los e2e cubren:
 - rotación de refresh tokens, reutilización y peticiones concurrentes;
 - cambio de contraseña;
 - protección del propietario;
+- permisos del `SUPER_ADMIN` y su separación de las tiendas;
+- bootstrap idempotente, incluso con dos ejecuciones simultáneas;
 - escalada de permisos;
 - borrado de roles asignados;
 - validación de `null`.
 
 ## Docker
 
-La imagen usa Node 22, corre con un usuario sin privilegios y declara un `HEALTHCHECK`. Al arrancar ejecuta `prisma migrate deploy`, después el seed **solo si `RUN_SEED=true`**, y luego Nest. Compose local pone `RUN_SEED=true` y `NODE_ENV=development`.
+La imagen usa Node 22, corre con un usuario sin privilegios y declara un `HEALTHCHECK`. Al arrancar ejecuta `prisma migrate deploy`, luego el bootstrap, después el seed **solo si `RUN_SEED=true`**, y por último Nest. Compose local pone `RUN_SEED=true` y `NODE_ENV=development`.
 
 El `Dockerfile` tiene tres etapas: `builder` compila el código, `prod-deps` instala solo las dependencias de producción y la imagen final copia el resultado. Así las herramientas de compilación (`python3`, `make`, `g++`) y la caché de npm no llegan a la imagen final.
 
@@ -240,3 +265,4 @@ En producción:
 - un `JWT_SECRET` propio (el servicio no arranca con los secretos de ejemplo)
 - `CORS_ORIGINS`
 - `RUN_SEED=false`
+- `SUPER_ADMIN_EMAIL` y `SUPER_ADMIN_PASSWORD` solo en el primer arranque, para crear el `SUPER_ADMIN`; después se pueden quitar.
