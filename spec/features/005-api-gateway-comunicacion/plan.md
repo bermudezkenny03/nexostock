@@ -7,13 +7,13 @@ _Cómo se implementa lo descrito en `spec.md`. Debe respetar la `constitution/` 
 Tres fases, en orden:
 
 - **Fase A — Contrato y claves:** RS256 en auth-service, paquete `service-kit` y adopción en auth-service, `trust proxy`. Va antes del gateway y de cualquier servicio operativo.
-- **Fase B — Gateway:** el servicio `api-gateway`, el chequeo de suspensión y el cambio de `docker-compose.yml` para que solo el gateway quede expuesto.
+- **Fase B — Gateway:** el servicio `api-gateway`, el chequeo de negocios desactivados y el cambio de `docker-compose.yml` para que solo el gateway quede expuesto.
 - **Fase C — Comunicación interna:** cliente HTTP interno e idempotencia. Se implementa junto con el primer par de servicios que se llamen entre sí (ventas con inventario y productos), no antes.
 
 ## Precondiciones
 
-- [004](../004-administracion-plataforma/spec.md) fase A implementada: claim `accessScope`, `ScopeGuard` y campo `code` en errores.
-- Para el chequeo de suspensión (B4): 004 fase B implementada (`businesses.status`).
+- [004](../004-administracion-plataforma/spec.md) fase A implementada (campo `code` en errores): hecho.
+- Para el chequeo de negocios desactivados (B4): 004 fase B implementada (código `BUSINESS_INACTIVE`).
 
 ## Implementación — Fase A
 
@@ -29,9 +29,9 @@ Tres fases, en orden:
 
 `backend/packages/service-kit/` (TypeScript, compilado a `dist/`, sin dependencias de Prisma):
 
-1. `contract/` — `JwtPayload`, `parseJwtPayload`, `AccessScope`, `HEADERS`, `ERROR_CODES`, `Page<T>`.
-2. `auth/` — mover desde auth-service: `JwtAuthGuard`, `PermissionsGuard`, `ScopeGuard` (de 004), `@Public`, `@RequirePermissions`, `@CurrentUser`, `@PlatformOnly`, `@AnyScope`. Agregar `JwtStrategy` RS256 configurada por entorno, `InternalOnlyGuard` + `@InternalOnly()` y `verifyAccessToken(token)` como función pura para el gateway.
-3. `http/` — mover `HttpExceptionFilter`; agregar `requestIdMiddleware`, `configureService(app)` y `ServiceKitModule.forRoot()`, que registra los guards globales en orden: sesión → ámbito → permisos.
+1. `contract/` — `JwtPayload`, `parseJwtPayload`, `HEADERS`, `ERROR_CODES`, `Page<T>`.
+2. `auth/` — mover desde auth-service: `JwtAuthGuard`, `PermissionsGuard`, `@Public`, `@RequirePermissions`, `@CurrentUser`. Agregar `JwtStrategy` RS256 configurada por entorno, `InternalOnlyGuard` + `@InternalOnly()` y `verifyAccessToken(token)` como función pura para el gateway. `PlatformGuard` se queda en auth-service, que es el único servicio con rutas de plataforma.
+3. `http/` — mover `HttpExceptionFilter`; agregar `requestIdMiddleware`, `configureService(app)` y `ServiceKitModule.forRoot()`, que registra los guards globales en orden: sesión → permisos.
 4. `config/` — `loadPublicKey()`, `assertProductionKeys()` (clave presente, RSA de al menos 2048 bits), `internalApiKey()` con rechazo de valores de ejemplo en producción, `trustProxyHops()`.
 5. Tests unitarios del paquete: parseo del payload, guards, verificación con clave correcta e incorrecta y saneamiento del `X-Request-Id`.
 
@@ -54,17 +54,16 @@ Tres fases, en orden:
 
 `backend/api-gateway/` (NestJS, puerto 3000, `bodyParser: false` para reenviar el cuerpo sin leerlo):
 
-1. `src/routes.ts` — tabla de rutas de la spec: prefijo, URL del servicio (`AUTH_SERVICE_URL`, …), si exige token y ámbito.
+1. `src/routes.ts` — tabla de rutas de la spec: prefijo, URL del servicio (`AUTH_SERVICE_URL`, …) y si exige token.
 2. Middlewares, en este orden:
    1. `requestId` (de `service-kit`);
    2. `helmet` y CORS (`CORS_ORIGINS`);
    3. límite global por IP con `express-rate-limit` (`GATEWAY_RATE_LIMIT`, `GATEWAY_RATE_WINDOW`);
    4. resolución de ruta (`404 ROUTE_NOT_FOUND` si no hay coincidencia o si es `/api/internal/**`);
    5. autenticación con `verifyAccessToken` cuando la ruta lo exige (`401 UNAUTHENTICATED`);
-   6. ámbito (`403 SCOPE_FORBIDDEN`);
-   7. estado del negocio (B4);
-   8. saneamiento de headers y escritura de `X-Forwarded-For`;
-   9. proxy.
+   6. estado del negocio (B4);
+   7. saneamiento de headers y escritura de `X-Forwarded-For`;
+   8. proxy.
 3. Proxy con `http-proxy-middleware` en modo streaming, timeout `UPSTREAM_TIMEOUT_MS` (10 s por defecto), sin reintentos.
 4. Errores del proxy → `503 UPSTREAM_UNAVAILABLE` o `504 UPSTREAM_TIMEOUT` con la forma común.
 5. `GET /api/health` — consulta `/api/health` de cada servicio con timeout corto y responde `{ status: 'ok' | 'degraded', services: { … } }`.
@@ -80,15 +79,15 @@ Tres fases, en orden:
 ### B3. Pruebas del gateway
 
 1. E2E del gateway con un servicio de prueba (stub HTTP) que devuelve los headers recibidos: saneamiento, `X-Request-Id`, `X-Forwarded-For`, rutas desconocidas e internas.
-2. E2E contra auth-service real: `401`, `403 SCOPE_FORBIDDEN` en ambos sentidos, login y refresh a través del gateway.
+2. E2E contra auth-service real: `401` con token inválido, `403` del servicio cuando falta el permiso, login y refresh a través del gateway.
 3. E2E de límites: dos IPs distintas tienen límites de login independientes.
 4. Fallos: servicio caído → `503`; servicio lento → `504`.
 
-### B4. Chequeo de suspensión (requiere 004 fase B)
+### B4. Chequeo de negocios desactivados (requiere 004 fase B)
 
-1. auth-service: `GET /api/internal/businesses/:id/status` con `@Public()` + `@InternalOnly()`, que responde `{ status }` y `404` si no existe.
-2. Gateway: caché en memoria por `businessId` con TTL `BUSINESS_STATUS_CACHE_TTL` (30 s); solo para tokens `BUSINESS` y fuera de `/api/auth/**`; si auth-service falla y no hay caché, deja pasar y registra una advertencia.
-3. E2E: suspender desde la plataforma y verificar el `403 BUSINESS_SUSPENDED` en el gateway antes de que venza el TTL.
+1. auth-service: `GET /api/internal/businesses/:id/status` con `@Public()` + `@InternalOnly()`, que responde `{ isActive }` y `404` si no existe.
+2. Gateway: caché en memoria por `businessId` con TTL `BUSINESS_STATUS_CACHE_TTL` (30 s), fuera de `/api/auth/**`; si auth-service falla y no hay caché, deja pasar y registra una advertencia.
+3. E2E: desactivar desde la plataforma y verificar el `403 BUSINESS_INACTIVE` en el gateway antes de que venza el TTL.
 
 ## Implementación — Fase C
 

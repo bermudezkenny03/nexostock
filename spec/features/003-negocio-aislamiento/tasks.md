@@ -37,7 +37,7 @@ _Checklist accionable derivada del `plan.md`. Fase 1: solo ítems de documentaci
 
 _Detalle en [005 · Tareas](../005-api-gateway-comunicacion/tasks.md)._
 
-- [ ] Verificar el JWT y el ámbito por ruta en el gateway (005, fase B).
+- [ ] Verificar el JWT en el gateway (005, fase B).
 - [ ] Reenviar el mismo token a los servicios, sin headers de identidad (005, fase B).
 - [ ] Documentar el contrato en el README del gateway (005, fase B).
 

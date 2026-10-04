@@ -77,13 +77,13 @@ No forma parte de v2 salvo decisión explícita del equipo.
 - **`lastActiveBusinessId`** (o equivalente en sesión) para cambiar de negocio sin re-autenticarse.
 - Facturación por tenant, subdominios por negocio: fuera de alcance hasta nueva spec. (El onboarding self-service ya está en fase 2: ver «Registro de negocios».)
 
-El **administrador de plataforma** salió de esta fase opcional: se define en [004](../004-administracion-plataforma/spec.md) como usuario de un negocio especial con `scope = 'PLATFORM'`, sin flag en `users` y sin volver opcional `business_id`.
+El **administrador de plataforma** salió de esta fase opcional: se define en [004](../004-administracion-plataforma/spec.md) como el rol `SUPER_ADMIN` del negocio `NexoStock`, sin flag en `users` y sin volver opcional `business_id`.
 
 ## Estado actual del auth-service (fase 2 implementada)
 
 El `auth-service` ya aísla por negocio. Una sola migración (`20251001000000_init_auth`) crea el esquema completo; detalle de rutas en `backend/auth-service/README.md`.
 
-> Cambios previstos sobre este estado: [004](../004-administracion-plataforma/spec.md) agrega `scope` a negocios, módulos, permisos y roles, reemplaza `is_active` por `status` y suma el claim `accessScope`; [005](../005-api-gateway-comunicacion/spec.md) cambia la firma del JWT a RS256.
+> Relacionado: [004](../004-administracion-plataforma/spec.md) agrega el negocio `NexoStock` con el rol `SUPER_ADMIN` y el bootstrap de arranque, sin cambios de esquema (la fase B suma la tabla `platform_audit_logs`); [005](../005-api-gateway-comunicacion/spec.md) cambia la firma del JWT a RS256.
 
 ### Datos
 
@@ -130,7 +130,7 @@ Responde con la sesión ya iniciada. Se apaga con `REGISTRATION_ENABLED=false` y
 - **Identidad visual.** `primary_color` y `logo_url` viven en `businesses`. El color se valida como `#RRGGBB` y se guarda en mayúsculas. El logo es una URL http/https (sin subida de archivo). `null` los borra. Login y `/auth/me` los exponen junto al nombre.
 - **Membresía y cambio de negocio: fase 3.** `business_user` (M:N), elegir negocio en el login y cambiar de negocio no se construyen ahora.
 - **Alta de negocios: self-service.** El profesor pide un sistema multi-tenant, y un tenant que solo se crea desde el seed no lo es. `POST /api/auth/register` crea el negocio con su propietario sin necesitar un administrador de plataforma. Se puede cerrar con `REGISTRATION_ENABLED=false`.
-- **Desactivación de negocios: se resuelve en [004](../004-administracion-plataforma/spec.md).** La plataforma suspende y reactiva negocios. Un admin del negocio sigue sin poder desactivar el suyo en `PATCH /api/business/me`: se quedaría fuera.
+- **Desactivación de negocios: se resuelve en [004](../004-administracion-plataforma/spec.md).** El `SUPER_ADMIN` activa y desactiva negocios (fase B). Un admin del negocio sigue sin poder desactivar el suyo en `PATCH /api/business/me`: se quedaría fuera.
 - **`business.manage` separado de `users.manage`.** Editar la identidad del negocio es un permiso propio. Por defecto solo lo tiene `OWNER`.
 - **Protección del propietario.** RBAC no basta: con `users.manage` se podría cambiar la contraseña del dueño o ascenderse a `OWNER`. Por eso las cuentas `OWNER` solo las gestiona otro `OWNER`, y nadie puede otorgar permisos que no tenga.
 
@@ -222,7 +222,7 @@ Datos de prueba existentes permanecen en el negocio por defecto; no se pierden u
 | Usuario | 1 negocio por usuario (fase 2) | A menudo M:N con cambio de contexto |
 | Roles | Por negocio; permisos globales | A menudo por tenant + roles de plataforma |
 | Catálogo de features | Módulos/permisos globales | A veces por plan o tenant |
-| Superadmin plataforma | Negocio de plataforma ([004](../004-administracion-plataforma/spec.md)) | Suele existir desde v1 |
+| Superadmin plataforma | `SUPER_ADMIN` del negocio `NexoStock` ([004](../004-administracion-plataforma/spec.md)) | Suele existir desde v1 |
 | Onboarding | Registro público del negocio (`POST /api/auth/register`); el propietario crea usuarios (001) | Registro público, invitaciones |
 | FK entre microservicios | No; UUID + filtro `businessId` | Igual en muchos diseños distribuidos |
 | Sucursales | Fuera de alcance (misión) | A veces “sites” bajo tenant |
@@ -277,7 +277,7 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 - Sucursales o almacenes múltiples bajo un mismo negocio (`constitution/mission.md`).
 - Facturación, límites por plan o cuotas por negocio.
 - Fase 3: membresía `business_user`, elegir negocio al iniciar sesión y cambiar de negocio.
-- Suspender o reactivar un negocio: se define en [004](../004-administracion-plataforma/spec.md).
+- Activar o desactivar un negocio: se define en [004](../004-administracion-plataforma/spec.md).
 - Subida de archivo de logo; solo URL.
 - Replicación geográfica o base de datos dedicada por negocio.
 - Aislamiento en servicios operativos (productos, inventario, ventas, reportes): todavía pendiente. El gateway y la comunicación interna se definen en [005](../005-api-gateway-comunicacion/spec.md).
@@ -288,7 +288,7 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 - **Permisos y módulos globales; roles por negocio** — un solo árbol RBAC que mantener; personalización por negocio vía roles, no duplicando permisos.
 - **Sin FK cross-schema** — alinea microservicios con PostgreSQL compartido o esquemas separados (`tech-stack.md`, sección 4).
 - **Fase 2 de auth ya implementada** — el negocio no es implícito en este servicio; el JWT lleva `businessId`.
-- **Patrón Propia Arepa con registro self-service** — entidad Negocio acotada; no se adopta tenant+company+superadmin en v2. Los negocios se crean con `POST /api/auth/register`; el administrador de plataforma se define en [004](../004-administracion-plataforma/spec.md) y es el único que puede suspenderlos.
+- **Patrón Propia Arepa con registro self-service** — entidad Negocio acotada; no se adopta tenant+company+superadmin en v2. Los negocios se crean con `POST /api/auth/register`; el `SUPER_ADMIN` se define en [004](../004-administracion-plataforma/spec.md) y es el único que puede desactivarlos.
 
 ## Documentos relacionados
 
@@ -296,5 +296,5 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 - [Tecnologías y convenciones](../../constitution/tech-stack.md) — sección 4 enlaza a este spec.
 - [001 · Autenticación y acceso por rol](../001-nombre-feature/spec.md)
 - [002 · Catálogo de productos](../002-productos-catalogo/spec.md) — aislamiento por negocio antes de persistir catálogo
-- [004 · Administración de plataforma](../004-administracion-plataforma/spec.md) — negocio de plataforma, suspensión y recuperación de acceso
+- [004 · Administración de plataforma](../004-administracion-plataforma/spec.md) — `SUPER_ADMIN`, gestión de negocios, usuarios y roles, y auditoría
 - [005 · API Gateway y comunicación interna](../005-api-gateway-comunicacion/spec.md) — reenvío del JWT, RS256 y rutas internas
