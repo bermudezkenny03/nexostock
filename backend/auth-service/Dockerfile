@@ -50,4 +50,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && if [ \"$RUN_SEED\" = \"true\" ]; then node dist/seed.js; fi && node dist/main.js"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node dist/bootstrap.js && if [ \"$RUN_SEED\" = \"true\" ]; then node dist/seed.js; fi && node dist/main.js"]

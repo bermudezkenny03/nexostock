@@ -8,6 +8,10 @@ import {
 import type { Role } from '@prisma/client';
 import type { JwtPayload } from '../common/interfaces';
 import {
+  isPlatformBusiness,
+  isPlatformPermission,
+} from '../common/rbac/permission.constants';
+import {
   normalizeRoleCode,
   roleCodeFromName,
 } from '../common/utils/code-from-name.util';
@@ -64,7 +68,7 @@ export class RolesService {
     }
 
     const permissionIds = dto.permissionIds ?? [];
-    await this.assertGrantable(permissionIds, actor);
+    await this.assertGrantable(permissionIds, businessId, actor);
 
     const role = await this.prisma.role.create({
       data: {
@@ -92,7 +96,7 @@ export class RolesService {
     const role = await this.findEditableRole(id, businessId);
 
     if (dto.permissionIds !== undefined) {
-      await this.assertGrantable(dto.permissionIds, actor);
+      await this.assertGrantable(dto.permissionIds, businessId, actor);
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -155,6 +159,7 @@ export class RolesService {
 
   private async assertGrantable(
     permissionIds: string[],
+    businessId: string,
     actor: JwtPayload,
   ): Promise<void> {
     if (permissionIds.length === 0) {
@@ -169,10 +174,18 @@ export class RolesService {
       throw new NotFoundException('Uno o más permisos no existen');
     }
 
+    const codes = permissions.map((permission) => permission.code);
+
+    // Checked before what the actor holds: a SUPER_ADMIN acting on a store
+    // holds platform.manage, but a store role must never receive it.
+    if (!isPlatformBusiness(businessId) && codes.some(isPlatformPermission)) {
+      throw new ForbiddenException(
+        'Los permisos de plataforma solo se asignan a roles del equipo de NexoStock',
+      );
+    }
+
     const held = new Set(actor.permissions);
-    const missing = permissions
-      .map((permission) => permission.code)
-      .filter((code) => !held.has(code));
+    const missing = codes.filter((code) => !held.has(code));
     if (missing.length > 0) {
       throw new ForbiddenException(
         `No puedes otorgar permisos que no tienes: ${missing.sort().join(', ')}`,

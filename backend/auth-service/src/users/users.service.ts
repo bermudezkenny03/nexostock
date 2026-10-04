@@ -9,7 +9,10 @@ import * as bcrypt from 'bcrypt';
 import { TokenService } from '../auth/token.service';
 import { bcryptRounds } from '../common/config/bcrypt.config';
 import type { JwtPayload } from '../common/interfaces';
-import { RoleCode } from '../common/rbac/permission.constants';
+import {
+  isPrivilegedRole,
+  PRIVILEGED_ROLE_CODES,
+} from '../common/rbac/permission.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { UserDetailEntity, UserListItemEntity } from './entities';
@@ -101,7 +104,7 @@ export class UsersService {
       dto.email !== undefined && dto.email !== existing.email;
 
     this.assertSelfEditAllowed(id, actor, dto, nextRole, deactivating);
-    if (currentRole?.code === RoleCode.OWNER && !this.isOwner(actor)) {
+    if (isPrivilegedRole(currentRole?.code) && !this.isOwner(actor)) {
       throw new ForbiddenException(
         'Solo un propietario puede modificar a otro propietario',
       );
@@ -122,9 +125,9 @@ export class UsersService {
 
       const losesOwnership =
         existing.isActive &&
-        currentRole?.code === RoleCode.OWNER &&
+        isPrivilegedRole(currentRole?.code) &&
         (deactivating ||
-          (nextRole !== null && nextRole.code !== RoleCode.OWNER));
+          (nextRole !== null && !isPrivilegedRole(nextRole.code)));
       if (losesOwnership) {
         await this.assertAnotherActiveOwner(tx, businessId, id);
       }
@@ -210,7 +213,7 @@ export class UsersService {
   }
 
   private assertCanAssignRole(role: Role, actor: JwtPayload): void {
-    if (role.code === RoleCode.OWNER && !this.isOwner(actor)) {
+    if (isPrivilegedRole(role.code) && !this.isOwner(actor)) {
       throw new ForbiddenException(
         'Solo un propietario puede asignar el rol de propietario',
       );
@@ -218,7 +221,7 @@ export class UsersService {
   }
 
   private isOwner(actor: JwtPayload): boolean {
-    return actor.roles.includes(RoleCode.OWNER);
+    return actor.roles.some((code) => isPrivilegedRole(code));
   }
 
   private async findRoleInBusiness(
@@ -264,7 +267,7 @@ export class UsersService {
         businessId,
         isActive: true,
         id: { not: userId },
-        userRole: { role: { code: RoleCode.OWNER } },
+        userRole: { role: { code: { in: [...PRIVILEGED_ROLE_CODES] } } },
       },
     });
     if (others === 0) {
