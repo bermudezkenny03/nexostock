@@ -12,7 +12,6 @@ export const NAME_MAX_LENGTH = 120;
 export const EMAIL_MAX_LENGTH = 254;
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 72;
-export const PASSWORD_PATTERN = /(?=.*\p{L})(?=.*\d)/u;
 
 export const IsOptionalNonNull = () =>
   ValidateIf((_object: object, value: unknown) => value !== undefined);
@@ -44,7 +43,7 @@ export const IsStrongPassword = () =>
     MaxLength(PASSWORD_MAX_LENGTH, {
       message: `password must be at most ${PASSWORD_MAX_LENGTH} characters`,
     }),
-    Matches(PASSWORD_PATTERN, {
+    Matches(/(?=.*\p{L})(?=.*\d)/u, {
       message: 'password must contain at least one letter and one number',
     }),
   );

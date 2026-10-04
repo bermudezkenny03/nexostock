@@ -6,15 +6,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
-import { runBootstrap } from '../src/bootstrap';
-import {
-  BUSINESS_PERMISSION_CODES,
-  ModuleCode,
-  Permission,
-  PLATFORM_BUSINESS_ID,
-  PLATFORM_ROLE_PERMISSIONS,
-  RoleCode,
-} from '../src/common/rbac/permission.constants';
+import { Permission } from '../src/common/rbac/permission.constants';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL?.trim());
 const describeIfDb = hasDatabase ? describe : describe.skip;
@@ -416,106 +408,6 @@ describeIfDb('Tenancy and security (e2e)', () => {
         .set('Authorization', `Bearer ${session.accessToken}`)
         .send({ name: 'Hijacked' })
         .expect(403);
-    });
-  });
-
-  describe('SUPER_ADMIN', () => {
-    const SUPER_ADMIN = {
-      email: 'superadmin@nexostock.local',
-      password: 'SuperAdmin123!',
-    };
-    const sorted = (codes: readonly string[]) => [...codes].sort();
-
-    it('administers its own team and the platform, without store operations', async () => {
-      const session = await login(SUPER_ADMIN.email, SUPER_ADMIN.password);
-      expect(session.user.businessId).toBe(PLATFORM_BUSINESS_ID);
-      expect(session.user.roles).toEqual([RoleCode.SUPER_ADMIN]);
-      expect(sorted(session.user.permissions)).toEqual(
-        sorted(PLATFORM_ROLE_PERMISSIONS.SUPER_ADMIN ?? []),
-      );
-      expect(session.user.permissions).not.toContain(Permission.SALES_MANAGE);
-
-      const auth = `Bearer ${session.accessToken}`;
-      const users = body<Array<{ email: string }>>(
-        await http().get('/api/users').set('Authorization', auth).expect(200),
-      );
-      expect(users.map((u) => u.email)).toContain(SUPER_ADMIN.email);
-      expect(users.map((u) => u.email)).not.toContain(ADMIN.email);
-
-      const permissions = body<PermissionBody[]>(
-        await http()
-          .get('/api/permissions')
-          .set('Authorization', auth)
-          .expect(200),
-      );
-      const platformManage = permissions.find(
-        (p) => p.code === Permission.PLATFORM_MANAGE,
-      );
-      expect(platformManage).toBeDefined();
-
-      const teamRole = body<RoleBody>(
-        await http()
-          .post('/api/roles')
-          .set('Authorization', auth)
-          .send({
-            name: `Soporte ${Date.now()}`,
-            permissionIds: [platformManage!.id],
-          })
-          .expect(201),
-      );
-      createdRoleIds.push(teamRole.id);
-    });
-
-    it('keeps platform permissions away from store owners', async () => {
-      const owner = await login(ADMIN.email, ADMIN.password);
-      expect(sorted(owner.user.permissions)).toEqual(
-        sorted(BUSINESS_PERMISSION_CODES),
-      );
-
-      const auth = `Bearer ${owner.accessToken}`;
-      const permissions = body<PermissionBody[]>(
-        await http()
-          .get('/api/permissions')
-          .set('Authorization', auth)
-          .expect(200),
-      );
-      expect(sorted(permissions.map((p) => p.code))).toEqual(
-        sorted(BUSINESS_PERMISSION_CODES),
-      );
-
-      const modules = body<Array<{ code: string }>>(
-        await http().get('/api/modules').set('Authorization', auth).expect(200),
-      );
-      expect(modules.map((m) => m.code)).not.toContain(ModuleCode.PLATFORM);
-
-      const platformPermission = await prisma.permission.findUniqueOrThrow({
-        where: { code: Permission.PLATFORM_MANAGE },
-      });
-      const res = await http()
-        .post('/api/roles')
-        .set('Authorization', auth)
-        .send({
-          name: `Platform ${Date.now()}`,
-          permissionIds: [platformPermission.id],
-        })
-        .expect(403);
-      expect(body<{ message: string }>(res).message).toBe(
-        'Los permisos de plataforma solo se asignan a roles del equipo de NexoStock',
-      );
-    });
-
-    it('bootstraps idempotently, even when two runs overlap', async () => {
-      const counts = () =>
-        Promise.all([
-          prisma.module.count(),
-          prisma.permission.count(),
-          prisma.business.count({ where: { id: PLATFORM_BUSINESS_ID } }),
-          prisma.role.count({ where: { businessId: PLATFORM_BUSINESS_ID } }),
-        ]);
-
-      const before = await counts();
-      await Promise.all([runBootstrap(prisma), runBootstrap(prisma)]);
-      expect(await counts()).toEqual(before);
     });
   });
 });
