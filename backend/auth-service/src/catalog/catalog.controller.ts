@@ -6,8 +6,12 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { RequirePermissions } from '../common/decorators';
-import { Permission } from '../common/rbac/permission.constants';
+import { CurrentUser, RequirePermissions } from '../common/decorators';
+import type { JwtPayload } from '../common/interfaces';
+import {
+  isPlatformBusiness,
+  Permission,
+} from '../common/rbac/permission.constants';
 import { CatalogService } from './catalog.service';
 import { ModuleTreeNodeEntity, PermissionCatalogItemEntity } from './entities';
 
@@ -28,13 +32,21 @@ export class CatalogController {
 
   @Get('modules')
   @ApiOkResponse({ type: ModuleTreeNodeEntity, isArray: true })
-  getModules(): Promise<ModuleTreeNodeEntity[]> {
-    return this.catalogService.getModuleTree();
+  getModules(
+    @CurrentUser() actor: JwtPayload,
+  ): Promise<ModuleTreeNodeEntity[]> {
+    return this.catalogService.getModuleTree(
+      isPlatformBusiness(actor.businessId),
+    );
   }
 
   @Get('permissions')
   @ApiOkResponse({ type: PermissionCatalogItemEntity, isArray: true })
-  getPermissions(): Promise<PermissionCatalogItemEntity[]> {
-    return this.catalogService.getPermissions();
+  getPermissions(
+    @CurrentUser() actor: JwtPayload,
+  ): Promise<PermissionCatalogItemEntity[]> {
+    return this.catalogService.getPermissions(
+      isPlatformBusiness(actor.businessId),
+    );
   }
 }

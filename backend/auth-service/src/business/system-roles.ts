@@ -1,22 +1,17 @@
 import type { Prisma } from '@prisma/client';
 import {
-  ROLE_PERMISSIONS,
-  RoleCode,
+  BUSINESS_ROLE_PERMISSIONS,
   RoleName,
   type RoleCodeValue,
+  type SystemRoleMatrix,
 } from '../common/rbac/permission.constants';
-
-export const SYSTEM_ROLE_CODES: readonly RoleCodeValue[] = [
-  RoleCode.OWNER,
-  RoleCode.INVENTORY_ADMIN,
-  RoleCode.SALES_EMPLOYEE,
-];
 
 export type SystemRoleIds = Record<RoleCodeValue, string>;
 
 export async function syncSystemRoles(
   db: Prisma.TransactionClient,
   businessId: string,
+  matrix: SystemRoleMatrix = BUSINESS_ROLE_PERMISSIONS,
 ): Promise<SystemRoleIds> {
   const permissions = await db.permission.findMany({
     select: { id: true, code: true },
@@ -25,12 +20,15 @@ export async function syncSystemRoles(
 
   const roleIds: Partial<SystemRoleIds> = {};
 
-  for (const code of SYSTEM_ROLE_CODES) {
-    const permissionIds = ROLE_PERMISSIONS[code].map((permissionCode) => {
+  for (const [code, permissionCodes] of Object.entries(matrix) as [
+    RoleCodeValue,
+    readonly string[],
+  ][]) {
+    const permissionIds = permissionCodes.map((permissionCode) => {
       const id = idByCode.get(permissionCode);
       if (!id) {
         throw new Error(
-          `Permission ${permissionCode} is missing from the catalog. Run the seed first.`,
+          `Permission ${permissionCode} is missing from the catalog. Run the bootstrap first.`,
         );
       }
       return id;
