@@ -35,9 +35,11 @@ _Checklist accionable derivada del `plan.md`. Fase 1: solo ítems de documentaci
 
 ## Fase 2 — API Gateway
 
-- [ ] Exigir claim `businessId` en rutas protegidas post-v2.
-- [ ] Propagar contexto verificado a servicios internos.
-- [ ] Documentar contrato en README del gateway.
+_Detalle en [005 · Tareas](../005-api-gateway-comunicacion/tasks.md)._
+
+- [ ] Verificar el JWT y el ámbito por ruta en el gateway (005, fase B).
+- [ ] Reenviar el mismo token a los servicios, sin headers de identidad (005, fase B).
+- [ ] Documentar el contrato en el README del gateway (005, fase B).
 
 ## Fase 2 — Servicios operativos
 
@@ -63,11 +65,12 @@ _Checklist accionable derivada del `plan.md`. Fase 1: solo ítems de documentaci
 ## Fase 3 — Backlog (opcional)
 
 - [ ] Spec separada para `business_user` M:N y selector de negocio activo.
-- [ ] Spec separada para superadministrador de plataforma.
+- [x] Spec separada para administrador de plataforma: [004](../004-administracion-plataforma/spec.md) (la implementación se sigue en sus tareas).
 - [x] Onboarding de nuevos negocios sin intervención manual (adelantado a fase 2 con `POST /api/auth/register`).
 
 ## Mantenimiento (checklist recurrente)
 
 - [ ] Al añadir tabla operativa nueva, incluir `business_id` NOT NULL e índice desde el primer migration.
 - [ ] Al añadir endpoint, revisar filtro por `businessId` del JWT en code review.
+- [ ] Al crear un servicio, montarlo sobre `service-kit` y registrarlo en el gateway ([005](../005-api-gateway-comunicacion/tasks.md), mantenimiento).
 - [ ] Al cambiar catálogo de permisos globales, verificar impacto en seeds de roles **por negocio**.
