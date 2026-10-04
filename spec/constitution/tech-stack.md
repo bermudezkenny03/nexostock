@@ -53,7 +53,7 @@ El frontend se comunicará con el **API Gateway**, que será el punto de entrada
 
 | Componente | Responsabilidad prevista |
 | --- | --- |
-| `api-gateway` | Única puerta de entrada: verificar el JWT, aplicar el ámbito por ruta y los controles comunes (CORS, límites por IP, `X-Request-Id`) y dirigir cada solicitud a su servicio. Ver [005](../features/005-api-gateway-comunicacion/spec.md). |
+| `api-gateway` | Única puerta de entrada: verificar el JWT, aplicar los controles comunes (CORS, límites por IP, `X-Request-Id`) y dirigir cada solicitud a su servicio. Ver [005](../features/005-api-gateway-comunicacion/spec.md). |
 | `auth-service` | Autenticar usuarios, gestionar credenciales, roles y negocios, emitir los tokens (es el único que los firma) y la administración de plataforma ([004](../features/004-administracion-plataforma/spec.md)). |
 | `products-service` | Administrar productos, categorías, descripciones, precios y estado de los productos. |
 | `inventory-service` | Administrar existencias, movimientos, niveles mínimos y disponibilidad. |
@@ -63,9 +63,10 @@ El frontend se comunicará con el **API Gateway**, que será el punto de entrada
 ### Contrato de identidad
 
 - El access token es un JWT firmado por `auth-service`. Emisor (`iss`) `nexostock-auth` (`JWT_ISSUER`), audiencia (`aud`) `nexostock-api` (`JWT_AUDIENCE`), vigencia `JWT_EXPIRES_IN` (15 minutos por defecto).
-- Claims: `sub`, `email`, `businessId`, `accessScope`, `roles`, `permissions`. `accessScope` (`BUSINESS` o `PLATFORM`) llega con [004](../features/004-administracion-plataforma/spec.md).
+- Claims: `sub`, `email`, `businessId`, `roles`, `permissions`.
 - Firma: hoy HS256 con `JWT_SECRET` compartido; [005](../features/005-api-gateway-comunicacion/spec.md) la cambia a **RS256**, antes de construir el gateway y los servicios operativos. Solo `auth-service` tendrá la clave privada; los demás verifican con la pública.
-- Cada servicio vuelve a verificar el token, filtra sus datos por el `businessId` del token, autoriza con los códigos de `permissions` y rechaza los tokens de un ámbito que no le corresponde. Los tokens de plataforma no operan tiendas.
+- Cada servicio vuelve a verificar el token, filtra sus datos por el `businessId` del token y autoriza cada ruta con los códigos de `permissions`.
+- El equipo de NexoStock es el negocio `NexoStock` con el rol `SUPER_ADMIN` ([004](../features/004-administracion-plataforma/spec.md)). No tiene permisos de tienda, así que no puede operar productos, inventario ni ventas; `platform.manage` solo puede existir en roles de ese negocio.
 - El detalle y la matriz de códigos están en `backend/auth-service/README.md`.
 
 ### Comunicación interna

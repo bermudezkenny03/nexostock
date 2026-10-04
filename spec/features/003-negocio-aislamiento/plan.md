@@ -38,7 +38,7 @@ _Pasos en orden. Ajustar rutas concretas al estado del repositorio en el momento
 
 Se diseña en [005 · API Gateway y comunicación interna](../005-api-gateway-comunicacion/plan.md). Resumen de lo que afecta a esta feature:
 
-1. El gateway verifica el JWT y aplica el ámbito por ruta antes de reenviar.
+1. El gateway verifica el JWT antes de reenviar; los permisos los revisa cada servicio.
 2. Reenvía el mismo `Authorization`; **no** existe un header `X-Business-Id`. Cada servicio vuelve a verificar el token y toma de ahí el `businessId`.
 3. El contrato de contexto de negocio queda documentado en 005 y en `constitution/tech-stack.md`.
 

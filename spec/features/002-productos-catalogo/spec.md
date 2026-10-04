@@ -25,9 +25,9 @@ Las specs futuras de **inventario** y **ventas** deben repetir esta sección (o 
 
 `products-service` es el primer servicio operativo y debe nacer sobre lo definido en [005 · API Gateway y comunicación interna](../005-api-gateway-comunicacion/spec.md):
 
-- usa `service-kit` para verificar el JWT (RS256), el ámbito (`BUSINESS` por defecto), los permisos y el formato de errores;
+- usa `service-kit` para verificar el JWT (RS256), los permisos y el formato de errores;
 - no publica puerto: se accede a través del gateway, que enruta `/api/products/**` y `/api/categories/**`;
-- rechaza tokens de plataforma ([004](../004-administracion-plataforma/spec.md)): la plataforma no opera catálogos;
+- toda ruta exige un permiso de productos; el `SUPER_ADMIN` no los tiene, así que la plataforma no opera catálogos ([004](../004-administracion-plataforma/spec.md));
 - los listados usan el formato de página común `{ items, total, page, pageSize }`.
 
 ## Criterios de aceptación
@@ -36,7 +36,7 @@ _Especificación incompleta: ampliar antes de implementar `products-service`. Lo
 
 - [ ] (stub) Un administrador de inventario o propietario puede crear, editar y desactivar productos según permisos de la feature 001.
 - [ ] (stub) Los productos referenciados en inventario y ventas pertenecen al mismo negocio: mismo `businessId` del token (003).
-- [ ] (stub) Un token de plataforma recibe `403` en todas las rutas de productos y categorías (004, 005).
+- [ ] (stub) El `SUPER_ADMIN` recibe `403` en todas las rutas de productos y categorías (004).
 
 ## Fuera de alcance (borrador)
 

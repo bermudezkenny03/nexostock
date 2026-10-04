@@ -4,7 +4,7 @@ _Checklist accionable derivada del `plan.md`. Marcar `[x]` al completar._
 
 ## Precondiciones
 
-- [ ] 004 fase A implementada (`accessScope`, `ScopeGuard`, `code` en errores).
+- [x] 004 fase A implementada (`code` en errores).
 
 ## Fase A — Contrato y claves
 
@@ -44,8 +44,8 @@ _Checklist accionable derivada del `plan.md`. Marcar `[x]` al completar._
 ### Servicio
 
 - [ ] Crear `backend/api-gateway` (NestJS, puerto 3000, `bodyParser: false`) y sumarlo a los workspaces.
-- [ ] Tabla de rutas con prefijo, servicio, token y ámbito.
-- [ ] Middlewares en orden: request id → helmet/CORS → límite por IP → ruta → token → ámbito → estado del negocio → saneamiento → proxy.
+- [ ] Tabla de rutas con prefijo, servicio y si exige token.
+- [ ] Middlewares en orden: request id → helmet/CORS → límite por IP → ruta → token → estado del negocio → saneamiento → proxy.
 - [ ] Proxy en streaming con timeout y traducción de errores a `503`/`504`.
 - [ ] `GET /api/health` agregado.
 - [ ] Dockerfile de tres etapas con usuario sin privilegios y `HEALTHCHECK`.
@@ -60,15 +60,15 @@ _Checklist accionable derivada del `plan.md`. Marcar `[x]` al completar._
 ### Pruebas
 
 - [ ] E2E con servicio stub: saneamiento de headers, `X-Request-Id`, `X-Forwarded-For`, rutas desconocidas e internas.
-- [ ] E2E con auth-service real: `401`, `403 SCOPE_FORBIDDEN` en ambos sentidos, login y refresh a través del gateway.
+- [ ] E2E con auth-service real: `401` con token inválido, `403` cuando falta el permiso, login y refresh a través del gateway.
 - [ ] E2E de límites por IP real.
 - [ ] E2E de fallos: `503` y `504`.
 
-### Suspensión (requiere 004 fase B)
+### Negocios desactivados (requiere 004 fase B)
 
 - [ ] `GET /api/internal/businesses/:id/status` en auth-service con `@InternalOnly()`.
 - [ ] Caché de estado en el gateway con `BUSINESS_STATUS_CACHE_TTL`.
-- [ ] E2E: suspensión aplicada en el gateway antes de que venza el TTL.
+- [ ] E2E: desactivación aplicada en el gateway antes de que venza el TTL.
 - [ ] Marcar los criterios de la fase B en `spec.md`.
 
 ## Fase C — Comunicación interna (con el primer servicio que llame a otro)

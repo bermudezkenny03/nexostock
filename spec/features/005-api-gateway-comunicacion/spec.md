@@ -16,9 +16,9 @@ Resuelve la decisión pendiente de "Integración" de `constitution/tech-stack.md
 ## Por qué
 
 - **Los servicios operativos todavía no existen.** Si nacen sin un contrato común, cada uno resolverá a su manera la autenticación y el aislamiento, y corregirlo después obliga a tocarlos todos.
-- **Con HS256 todos los servicios pueden fabricar tokens.** Hoy el token se firma con un `JWT_SECRET` compartido, y con HS256 la misma clave verifica y firma. Si se filtra la configuración de cualquier servicio, alguien podría crear un token de `OWNER` de cualquier negocio, o un token `PLATFORM` ([004](../004-administracion-plataforma/spec.md)) y suspender tiendas.
+- **Con HS256 todos los servicios pueden fabricar tokens.** Hoy el token se firma con un `JWT_SECRET` compartido, y con HS256 la misma clave verifica y firma. Si se filtra la configuración de cualquier servicio, alguien podría crear un token de `OWNER` de cualquier negocio, o uno de `SUPER_ADMIN` ([004](../004-administracion-plataforma/spec.md)) y desactivar tiendas.
 - **Detrás de un proxy, los límites por IP se rompen.** `auth-service` limita los intentos por IP y no tiene configurado `trust proxy`. Con el gateway delante, todas las peticiones llegarían desde la IP del gateway: el límite de login (5 por minuto) se volvería un límite global para toda la plataforma.
-- **La suspensión de un negocio tarda hasta 15 minutos** en aplicarse (004). El gateway puede reducirla a segundos.
+- **Desactivar un negocio tarda hasta 15 minutos** en aplicarse (004). El gateway puede reducirlo a segundos.
 - **Hoy `auth-service` publica su puerto directamente.** Los servicios no deberían ser accesibles desde afuera.
 
 ## Arquitectura
@@ -27,7 +27,7 @@ Resuelve la decisión pendiente de "Integración" de `constitution/tech-stack.md
 Navegador ──HTTPS──► api-gateway :3000 ──┬──► auth-service      :3001
                      │                    ├──► products-service  :3002
                      │ verifica el JWT    ├──► inventory-service :3003 ◄──┐
-                     │ ámbito por ruta    ├──► sales-service     :3004 ───┘ llamada interna
+                     │ enruta por prefijo ├──► sales-service     :3004 ───┘ llamada interna
                      │ estado del negocio └──► reports-service   :3005      (mismo JWT)
                      │ CORS, límites, X-Request-Id
                      │
@@ -42,8 +42,8 @@ Navegador ──HTTPS──► api-gateway :3000 ──┬──► auth-service
 | --- | --- |
 | Es el único componente con puerto publicado | Lógica de negocio |
 | Verifica firma, emisor, audiencia y vigencia del JWT | Permisos finos (`products.manage`, etc.): los revisa cada servicio |
-| Aplica la regla de ámbito por prefijo de ruta | Acceso a base de datos |
-| Rechaza peticiones de negocios suspendidos (con caché) | Combinar respuestas de varios servicios |
+| Dirige cada prefijo de ruta a su servicio | Acceso a base de datos |
+| Rechaza peticiones de negocios desactivados (con caché) | Combinar respuestas de varios servicios |
 | CORS, `helmet` y límite global de peticiones por IP | Reintentar peticiones que no son idempotentes |
 | Genera `X-Request-Id` y escribe `X-Forwarded-For` | Reescribir rutas: reenvía el mismo path |
 | Elimina headers internos que mande el cliente | Exponer rutas `/api/internal/**` |
@@ -51,24 +51,23 @@ Navegador ──HTTPS──► api-gateway :3000 ──┬──► auth-service
 
 ### 2. Tabla de rutas
 
-| Prefijo | Servicio | Token en el gateway | Ámbito |
-| --- | --- | --- | --- |
-| `/api/auth/**` | auth | Lo decide auth-service (hay rutas públicas) | Lo decide auth-service |
-| `/api/platform/**` | auth | Obligatorio | `PLATFORM` |
-| `/api/business/**`, `/api/users/**`, `/api/roles/**`, `/api/modules`, `/api/permissions` | auth | Obligatorio | `BUSINESS` |
-| `/api/products/**`, `/api/categories/**` | products | Obligatorio | `BUSINESS` |
-| `/api/inventory/**` | inventory | Obligatorio | `BUSINESS` |
-| `/api/sales/**` | sales | Obligatorio | `BUSINESS` |
-| `/api/reports/**` | reports | Obligatorio | `BUSINESS` |
-| `/api/health` | el propio gateway | No | — |
-| Cualquier otra, incluida `/api/internal/**` | — | — | `404 ROUTE_NOT_FOUND` |
+| Prefijo | Servicio | Token en el gateway |
+| --- | --- | --- |
+| `/api/auth/**` | auth | Lo decide auth-service (hay rutas públicas) |
+| `/api/platform/**`, `/api/business/**`, `/api/users/**`, `/api/roles/**`, `/api/modules`, `/api/permissions` | auth | Obligatorio |
+| `/api/products/**`, `/api/categories/**` | products | Obligatorio |
+| `/api/inventory/**` | inventory | Obligatorio |
+| `/api/sales/**` | sales | Obligatorio |
+| `/api/reports/**` | reports | Obligatorio |
+| `/api/health` | el propio gateway | No |
+| Cualquier otra, incluida `/api/internal/**` | — | `404 ROUTE_NOT_FOUND` |
 
-El gateway hace el control general y cada servicio lo repite con `service-kit`: una petición que llegue a un servicio sin pasar por el gateway sigue bloqueada.
+El gateway solo comprueba que el token sea válido. Qué puede hacer cada usuario lo decide cada servicio con los `permissions` del token, usando `service-kit`: una petición que llegue a un servicio sin pasar por el gateway sigue bloqueada. Por eso el `SUPER_ADMIN`, que no tiene permisos de tienda, no puede operar productos, inventario ni ventas, y las rutas `/api/platform/**` las protege auth-service con `platform.manage` ([004](../004-administracion-plataforma/spec.md)).
 
 ### 3. La identidad viaja dentro del JWT
 
 - El gateway reenvía el mismo `Authorization: Bearer <jwt>` sin modificarlo.
-- Cada servicio verifica el token y toma `businessId`, `accessScope` y `permissions` de ahí.
+- Cada servicio verifica el token y toma `businessId` y `permissions` de ahí.
 - **No existen** headers como `X-Business-Id` o `X-User-Id`. Si el cliente los envía, el gateway los elimina. Esto reemplaza la opción de "header interno" que mencionaba [003](../003-negocio-aislamiento/spec.md).
 
 ### 4. RS256: solo auth-service puede firmar
@@ -97,12 +96,12 @@ El gateway hace el control general y cada servicio lo repite con `service-kit`: 
 - Los servicios confían en un solo salto (`TRUST_PROXY_HOPS=1`), así que `req.ip` vuelve a ser la IP del cliente. auth-service conserva sus límites por ruta (login, registro, recuperación).
 - Solo es seguro si los servicios no son accesibles desde afuera; de lo contrario, cualquiera podría falsificar `X-Forwarded-For`.
 
-### 7. Negocios suspendidos
+### 7. Negocios desactivados
 
-- Para tokens `BUSINESS`, el gateway consulta `GET /api/internal/businesses/:id/status` en auth-service (llamada de sistema) y guarda la respuesta en caché (`BUSINESS_STATUS_CACHE_TTL`, 30 segundos por defecto).
-- Si el negocio está suspendido responde `403 BUSINESS_SUSPENDED`. La suspensión se aplica en segundos en vez de 15 minutos.
+- El gateway consulta `GET /api/internal/businesses/:id/status` en auth-service (llamada de sistema) con el `businessId` del token, y guarda la respuesta en caché (`BUSINESS_STATUS_CACHE_TTL`, 30 segundos por defecto).
+- Si el negocio está desactivado responde `403 BUSINESS_INACTIVE`. La desactivación se aplica en segundos en vez de 15 minutos.
 - No se aplica a `/api/auth/**`: ahí auth-service ya decide con la base.
-- Si auth-service no responde y no hay valor en caché, el gateway deja pasar y lo registra en el log. La barrera de seguridad es la firma del token; la suspensión es una medida administrativa que, en el peor caso, igual se aplica cuando el token caduca.
+- Si auth-service no responde y no hay valor en caché, el gateway deja pasar y lo registra en el log. La barrera de seguridad es la firma del token; desactivar un negocio es una medida administrativa que, en el peor caso, igual se aplica cuando el token caduca.
 
 ### 8. Paquete compartido `service-kit`
 
@@ -110,8 +109,8 @@ El gateway hace el control general y cada servicio lo repite con `service-kit`: 
 
 | Parte | Contenido |
 | --- | --- |
-| Contrato | `JwtPayload`, `parseJwtPayload`, `AccessScope`, nombres de headers, códigos de error, `Page<T>` |
-| Autenticación | Verificación RS256; guards `JwtAuthGuard`, `ScopeGuard` (`BUSINESS` por defecto), `PermissionsGuard`, `InternalOnlyGuard`; decoradores `@Public`, `@PlatformOnly`, `@AnyScope`, `@RequirePermissions`, `@CurrentUser`, `@InternalOnly`; funciones puras de verificación para el gateway |
+| Contrato | `JwtPayload`, `parseJwtPayload`, nombres de headers, códigos de error, `Page<T>` |
+| Autenticación | Verificación RS256; guards `JwtAuthGuard`, `PermissionsGuard`, `InternalOnlyGuard`; decoradores `@Public`, `@RequirePermissions`, `@CurrentUser`, `@InternalOnly`; funciones puras de verificación para el gateway |
 | HTTP | `HttpExceptionFilter` con `code`, middleware de `X-Request-Id`, `configureService(app)` (prefijo, `helmet`, validación, filtro de errores, `trust proxy`), cliente HTTP interno |
 
 No incluye Prisma, lógica de negocio ni la firma de tokens, que sigue siendo exclusiva de auth-service.
@@ -122,7 +121,7 @@ No incluye Prisma, lógica de negocio ni la firma de tokens, que sigue siendo ex
 
 - Algoritmo `RS256`, header con `kid`.
 - `iss`: `nexostock-auth` (`JWT_ISSUER`). `aud`: `nexostock-api` (`JWT_AUDIENCE`). Vigencia: `JWT_EXPIRES_IN` (15 minutos por defecto).
-- Claims: `sub`, `email`, `businessId`, `accessScope`, `roles`, `permissions` (`accessScope` llega con 004).
+- Claims: `sub`, `email`, `businessId`, `roles`, `permissions` (sin cambios).
 
 ### Headers
 
@@ -144,7 +143,7 @@ Todos los componentes responden con la misma forma ([004](../004-administracion-
 { "statusCode": 503, "message": "El servicio no está disponible. Intenta de nuevo.", "error": "Service Unavailable", "code": "UPSTREAM_UNAVAILABLE" }
 ```
 
-Códigos del gateway: `ROUTE_NOT_FOUND` (404), `UNAUTHENTICATED` (401), `SCOPE_FORBIDDEN` (403), `BUSINESS_SUSPENDED` (403), `RATE_LIMITED` (429), `UPSTREAM_UNAVAILABLE` (503), `UPSTREAM_TIMEOUT` (504).
+Códigos del gateway: `ROUTE_NOT_FOUND` (404), `UNAUTHENTICATED` (401), `BUSINESS_INACTIVE` (403), `RATE_LIMITED` (429), `UPSTREAM_UNAVAILABLE` (503), `UPSTREAM_TIMEOUT` (504).
 
 ### Paginación
 
@@ -166,12 +165,12 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse._
 
 - [ ] Solo el gateway publica un puerto en `docker-compose.yml`.
 - [ ] Un token inválido o vencido responde `401 UNAUTHENTICATED` en el gateway, sin llegar al servicio.
-- [ ] Un token `PLATFORM` recibe `403 SCOPE_FORBIDDEN` en rutas de tienda, y un token `BUSINESS` en `/api/platform/**`.
+- [ ] Una ruta sin el permiso necesario responde `403` desde el servicio, también cuando la petición pasa por el gateway (por ejemplo, el `SUPER_ADMIN` en rutas de productos).
 - [ ] `/api/internal/**` y cualquier prefijo desconocido responden `404 ROUTE_NOT_FOUND`.
 - [ ] Los headers `X-Internal-Key`, `X-Business-Id` y `X-User-Id` enviados por el cliente no llegan a ningún servicio.
 - [ ] Toda respuesta incluye `X-Request-Id`, y el mismo valor aparece en los logs del gateway y del servicio.
 - [ ] Con un servicio caído responde `503 UPSTREAM_UNAVAILABLE`; con uno que no responde a tiempo, `504 UPSTREAM_TIMEOUT`; ambos con la forma de error común.
-- [ ] Las peticiones de un negocio suspendido se rechazan con `403 BUSINESS_SUSPENDED` en menos de `BUSINESS_STATUS_CACHE_TTL`.
+- [ ] Las peticiones de un negocio desactivado se rechazan con `403 BUSINESS_INACTIVE` en menos de `BUSINESS_STATUS_CACHE_TTL`.
 - [ ] CORS solo admite los orígenes de `CORS_ORIGINS`, configurado en el gateway.
 - [ ] `GET /api/health` informa el estado del gateway y de cada servicio.
 
@@ -198,9 +197,9 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse._
 - **Reenviar el JWT en vez de headers de identidad.** No existe ningún header que se pueda falsificar, y cada servicio aplica la misma verificación con o sin gateway. Se descartó `X-Business-Id` porque obliga a confiar en la red y en que nadie llegue al servicio sin pasar por el gateway.
 - **RS256 en vez de HS256.** Separa firmar de verificar. Se eligió RS256 entre los algoritmos asimétricos por ser el de soporte más amplio en las librerías que ya usa el proyecto (`@nestjs/jwt`, `passport-jwt`).
 - **HTTP REST interno en vez del transporte TCP de NestJS o un broker.** Es el mismo estilo que la API pública, se prueba con `curl` y no agrega infraestructura. El transporte TCP ata la comunicación a un protocolo propio de Nest, y la constitución excluye un broker del MVP.
-- **Gateway en NestJS** (lo fija la constitución), que además permite reutilizar `service-kit`. Se descartó Nginx o Kong porque duplicarían la lógica de verificación y ámbito.
+- **Gateway en NestJS** (lo fija la constitución), que además permite reutilizar `service-kit`. Se descartó Nginx o Kong porque duplicarían la lógica de verificación del token.
 - **`X-Internal-Key` además del aislamiento de red.** Agrega una barrera barata por si una ruta interna quedara expuesta por error.
-- **El chequeo de suspensión deja pasar si auth-service no responde.** Evita que una caída de auth-service tumbe toda la operación de las tiendas; el peor caso queda acotado por la vigencia del token.
+- **El chequeo de negocios desactivados deja pasar si auth-service no responde.** Evita que una caída de auth-service tumbe toda la operación de las tiendas; el peor caso queda acotado por la vigencia del token.
 - **Paquete compartido con npm workspaces en vez de copiar código.** Una sola implementación de la seguridad; las copias terminan siendo distintas entre sí.
 - **El gateway no reescribe rutas.** Los servicios exponen los mismos paths que ve el frontend, lo que simplifica depurar.
 
