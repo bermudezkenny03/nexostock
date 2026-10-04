@@ -1,249 +1,171 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import {
+  DEV_SUPER_ADMIN_PASSWORD,
+  ensureSuperAdmin,
+  runBootstrap,
+} from './bootstrap';
 import { syncSystemRoles } from './business/system-roles';
 import { bcryptRounds } from './common/config/bcrypt.config';
 import {
-  ModuleCode,
-  Permission,
   RoleCode,
+  type RoleCodeValue,
 } from './common/rbac/permission.constants';
 
 if (process.env.NODE_ENV === 'production') {
   console.error(
-    'The seed creates a demo business with a known password. Refusing to run with NODE_ENV=production.',
+    'The seed creates accounts with known passwords. Refusing to run with NODE_ENV=production.',
   );
   process.exit(1);
 }
 
 const prisma = new PrismaClient();
 
-const DEFAULT_BUSINESS_ID = '00000000-0000-4000-8000-000000000001';
-const DEFAULT_PRIMARY_COLOR = '#0F766E';
-const ADMIN_EMAIL = 'admin@nexostock.local';
-const ADMIN_PASSWORD = 'Admin123!';
+const SUPER_ADMIN_EMAIL = 'superadmin@nexostock.local';
+const DEMO_PASSWORD = 'Demo123!';
 
-type PermissionSeed = {
-  action: string;
-  name: string;
-  code: string;
+type DemoUser = {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: RoleCodeValue;
 };
 
-type ModuleSeed = {
-  code: string;
+type DemoBusiness = {
+  id: string;
   name: string;
-  description: string;
-  sortOrder: number;
-  route?: string;
-  icon: string;
-  standardViewManage?: boolean;
-  permissions?: PermissionSeed[];
-  children?: ModuleSeed[];
+  primaryColor: string;
+  users: DemoUser[];
 };
 
-const MODULE_TREE: ModuleSeed[] = [
+const DEMO_BUSINESSES: DemoBusiness[] = [
   {
-    code: ModuleCode.DASHBOARD,
-    name: 'Dashboard',
-    description: 'Overview and KPIs',
-    sortOrder: 10,
-    route: '/dashboard',
-    icon: 'layout-dashboard',
-    standardViewManage: true,
-  },
-  {
-    code: ModuleCode.PRODUCTS,
-    name: 'Products',
-    description: 'Product catalog',
-    sortOrder: 20,
-    route: '/products',
-    icon: 'package',
-    standardViewManage: true,
-  },
-  {
-    code: ModuleCode.INVENTORY,
-    name: 'Inventory',
-    description: 'Stock levels and movements',
-    sortOrder: 30,
-    route: '/inventory',
-    icon: 'warehouse',
-    standardViewManage: true,
-  },
-  {
-    code: ModuleCode.SALES,
-    name: 'Sales',
-    description: 'Orders and sales',
-    sortOrder: 40,
-    route: '/sales',
-    icon: 'shopping-cart',
-    standardViewManage: true,
-  },
-  {
-    code: ModuleCode.REPORTS,
-    name: 'Reports',
-    description: 'Analytics and exports',
-    sortOrder: 50,
-    route: '/reports',
-    icon: 'bar-chart',
-    standardViewManage: true,
-  },
-  {
-    code: ModuleCode.ADMINISTRATION,
-    name: 'Administration',
-    description: 'Users, roles and system access',
-    sortOrder: 60,
-    route: '/admin',
-    icon: 'settings',
-    children: [
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'NexoStock Demo',
+    primaryColor: '#0F766E',
+    users: [
       {
-        code: ModuleCode.ADMIN_USERS,
-        name: 'Users',
-        description: 'Manage users and access',
-        sortOrder: 1,
-        route: '/admin/users',
-        icon: 'users',
-        permissions: [
-          {
-            action: 'manage',
-            name: 'Manage users',
-            code: Permission.USERS_MANAGE,
-          },
-          {
-            action: 'view',
-            name: 'View modules catalog',
-            code: Permission.MODULES_VIEW,
-          },
-        ],
+        email: 'admin@nexostock.local',
+        password: 'Admin123!',
+        firstName: 'System',
+        lastName: 'Admin',
+        role: RoleCode.OWNER,
+      },
+    ],
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000002',
+    name: 'Tienda Don Pepe',
+    primaryColor: '#B45309',
+    users: [
+      {
+        email: 'dueno@donpepe.local',
+        password: DEMO_PASSWORD,
+        firstName: 'José',
+        lastName: 'Ramírez',
+        role: RoleCode.OWNER,
       },
       {
-        code: ModuleCode.ADMIN_ROLES,
-        name: 'Roles',
-        description: 'Roles and permission assignment',
-        sortOrder: 2,
-        route: '/admin/roles',
-        icon: 'shield',
-        permissions: [
-          {
-            action: 'manage',
-            name: 'Manage roles',
-            code: Permission.ROLES_MANAGE,
-          },
-        ],
+        email: 'inventario@donpepe.local',
+        password: DEMO_PASSWORD,
+        firstName: 'Marta',
+        lastName: 'Gómez',
+        role: RoleCode.INVENTORY_ADMIN,
       },
       {
-        code: ModuleCode.ADMIN_BUSINESS,
-        name: 'Business',
-        description: 'Business profile and visual identity',
-        sortOrder: 3,
-        route: '/admin/business',
-        icon: 'building',
-        permissions: [
-          {
-            action: 'manage',
-            name: 'Manage business profile',
-            code: Permission.BUSINESS_MANAGE,
-          },
-        ],
+        email: 'ventas@donpepe.local',
+        password: DEMO_PASSWORD,
+        firstName: 'Luis',
+        lastName: 'Torres',
+        role: RoleCode.SALES_EMPLOYEE,
+      },
+    ],
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000003',
+    name: 'Papelería El Lápiz',
+    primaryColor: '#1D4ED8',
+    users: [
+      {
+        email: 'dueno@ellapiz.local',
+        password: DEMO_PASSWORD,
+        firstName: 'Carolina',
+        lastName: 'Méndez',
+        role: RoleCode.OWNER,
+      },
+      {
+        email: 'inventario@ellapiz.local',
+        password: DEMO_PASSWORD,
+        firstName: 'Andrés',
+        lastName: 'Castro',
+        role: RoleCode.INVENTORY_ADMIN,
+      },
+      {
+        email: 'ventas@ellapiz.local',
+        password: DEMO_PASSWORD,
+        firstName: 'Paula',
+        lastName: 'Rojas',
+        role: RoleCode.SALES_EMPLOYEE,
       },
     ],
   },
 ];
 
-async function upsertModule(
-  moduleSeed: ModuleSeed,
-  parentId: string | null,
-): Promise<void> {
-  const fields = {
-    name: moduleSeed.name,
-    description: moduleSeed.description,
-    sortOrder: moduleSeed.sortOrder,
-    route: moduleSeed.route ?? null,
-    icon: moduleSeed.icon,
-    parentId,
-  };
-  const saved = await prisma.module.upsert({
-    where: { code: moduleSeed.code },
-    update: fields,
-    create: { code: moduleSeed.code, ...fields },
+/** Creates the business and its missing users. Never overwrites an account. */
+async function seedBusiness(demo: DemoBusiness): Promise<void> {
+  await prisma.business.upsert({
+    where: { id: demo.id },
+    update: {},
+    create: { id: demo.id, name: demo.name, primaryColor: demo.primaryColor },
   });
+  const roleIds = await syncSystemRoles(prisma, demo.id);
 
-  const permissionSeeds: PermissionSeed[] = [...(moduleSeed.permissions ?? [])];
-  if (moduleSeed.standardViewManage) {
-    permissionSeeds.push(
-      {
-        action: 'view',
-        name: `${moduleSeed.name} — view`,
-        code: `${moduleSeed.code}.view`,
-      },
-      {
-        action: 'manage',
-        name: `${moduleSeed.name} — manage`,
-        code: `${moduleSeed.code}.manage`,
-      },
-    );
-  }
-
-  for (const perm of permissionSeeds) {
-    const data = { name: perm.name, action: perm.action, moduleId: saved.id };
-    await prisma.permission.upsert({
-      where: { code: perm.code },
-      update: data,
-      create: { code: perm.code, ...data },
+  for (const user of demo.users) {
+    const existing = await prisma.user.findUnique({
+      where: { email: user.email },
+      select: { id: true },
     });
-  }
+    if (existing) {
+      continue;
+    }
 
-  for (const child of moduleSeed.children ?? []) {
-    await upsertModule(child, saved.id);
+    const passwordHash = await bcrypt.hash(user.password, bcryptRounds());
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: user.email,
+          passwordHash,
+          businessId: demo.id,
+          detail: {
+            create: { firstName: user.firstName, lastName: user.lastName },
+          },
+        },
+      });
+      await tx.userRole.create({
+        data: {
+          userId: created.id,
+          roleId: roleIds[user.role],
+          businessId: demo.id,
+        },
+      });
+    });
   }
 }
 
 async function main(): Promise<void> {
-  for (const root of MODULE_TREE) {
-    await upsertModule(root, null);
+  await runBootstrap(prisma);
+
+  await ensureSuperAdmin(prisma, {
+    email: SUPER_ADMIN_EMAIL,
+    password: DEV_SUPER_ADMIN_PASSWORD,
+    firstName: 'Super',
+    lastName: 'Admin',
+  });
+
+  for (const demo of DEMO_BUSINESSES) {
+    await seedBusiness(demo);
   }
-
-  const business = await prisma.business.upsert({
-    where: { id: DEFAULT_BUSINESS_ID },
-    update: {},
-    create: {
-      id: DEFAULT_BUSINESS_ID,
-      name: 'NexoStock Demo',
-      primaryColor: DEFAULT_PRIMARY_COLOR,
-    },
-  });
-
-  const businesses = await prisma.business.findMany({ select: { id: true } });
-  for (const { id } of businesses) {
-    await syncSystemRoles(prisma, id);
-  }
-
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: ADMIN_EMAIL },
-    select: { id: true },
-  });
-  if (existingAdmin) {
-    return;
-  }
-
-  const ownerRole = await prisma.role.findUniqueOrThrow({
-    where: {
-      businessId_code: { businessId: business.id, code: RoleCode.OWNER },
-    },
-  });
-
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, bcryptRounds());
-  await prisma.$transaction(async (tx) => {
-    const admin = await tx.user.create({
-      data: {
-        email: ADMIN_EMAIL,
-        passwordHash,
-        businessId: business.id,
-        detail: { create: { firstName: 'System', lastName: 'Admin' } },
-      },
-    });
-    await tx.userRole.create({
-      data: { userId: admin.id, roleId: ownerRole.id, businessId: business.id },
-    });
-  });
 }
 
 main()

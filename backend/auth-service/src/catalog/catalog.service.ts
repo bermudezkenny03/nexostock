@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import {
+  PLATFORM_MODULE_CODES,
+  PLATFORM_PERMISSION_CODES,
+} from '../common/rbac/permission.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ModuleTreeNodeEntity,
@@ -20,15 +24,26 @@ type ModuleRow = {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getModuleTree(): Promise<ModuleTreeNodeEntity[]> {
+  // Platform modules and permissions are only listed to the NexoStock team.
+  async getModuleTree(
+    includePlatform: boolean,
+  ): Promise<ModuleTreeNodeEntity[]> {
     const modules = await this.prisma.module.findMany({
+      where: includePlatform
+        ? undefined
+        : { code: { notIn: [...PLATFORM_MODULE_CODES] } },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
     return this.buildModuleTree(modules);
   }
 
-  async getPermissions(): Promise<PermissionCatalogItemEntity[]> {
+  async getPermissions(
+    includePlatform: boolean,
+  ): Promise<PermissionCatalogItemEntity[]> {
     const permissions = await this.prisma.permission.findMany({
+      where: includePlatform
+        ? undefined
+        : { code: { notIn: [...PLATFORM_PERMISSION_CODES] } },
       include: { module: true },
       orderBy: [{ module: { sortOrder: 'asc' } }, { code: 'asc' }],
     });

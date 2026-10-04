@@ -36,9 +36,11 @@ _Pasos en orden. Ajustar rutas concretas al estado del repositorio en el momento
 
 ### 3. API Gateway
 
-1. Validar que rutas protegidas reciben JWT con `businessId` (middleware o guard compartido).
-2. Propagación a servicios downstream: header interno acordado (p. ej. `X-Business-Id`) **solo** si el valor coincide con el claim verificado del JWT.
-3. Documentar en README del gateway el contrato de contexto de negocio.
+Se diseña en [005 · API Gateway y comunicación interna](../005-api-gateway-comunicacion/plan.md). Resumen de lo que afecta a esta feature:
+
+1. El gateway verifica el JWT antes de reenviar; los permisos los revisa cada servicio.
+2. Reenvía el mismo `Authorization`; **no** existe un header `X-Business-Id`. Cada servicio vuelve a verificar el token y toma de ahí el `businessId`.
+3. El contrato de contexto de negocio queda documentado en 005 y en `constitution/tech-stack.md`.
 
 ### 4. Servicios operativos (orden sugerido)
 
@@ -72,7 +74,8 @@ Para cada servicio: índices `(business_id, …)`, pruebas de “UUID válido pe
 - **Un usuario ↔ un negocio en v2** — evita complejidad de sesión; fase 3 introduce M:N si hace falta.
 - **404 ante recurso de otro negocio** — reduce fuga de existencia entre tenants lógicos; unificar con gateway si el equipo prefiere 403 en admin.
 - **Roles clonados por negocio en seed** — más simple que roles “plantilla” referenciados; duplicación acotada a tres roles de sistema.
-- **No superadmin en v2** — los negocios nuevos se crean con el registro público `POST /api/auth/register` (que se puede desactivar con `REGISTRATION_ENABLED=false`). Solo la desactivación de negocios espera a fase 3.
+- **Sin superadmin en v2; la plataforma llega con 004** — los negocios nuevos se crean con el registro público `POST /api/auth/register` (que se puede desactivar con `REGISTRATION_ENABLED=false`). La suspensión de negocios y la recuperación de acceso de los dueños se definen en [004](../004-administracion-plataforma/spec.md).
+- **Sin header de negocio entre servicios** — el contexto viaja solo dentro del JWT firmado ([005](../005-api-gateway-comunicacion/spec.md)); un header aparte sería un valor más que alguien podría falsificar.
 
 ## Riesgos
 

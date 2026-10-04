@@ -35,6 +35,7 @@ interface RefreshBody {
 interface ErrorBody {
   statusCode: number;
   message: string | string[];
+  code?: string;
   timestamp: string;
   path: string;
 }
@@ -608,6 +609,7 @@ describeIfDb('Auth (e2e)', () => {
       .expect(403)
       .expect((res) => {
         expect(readBody<ErrorBody>(res).message).toBe('El usuario está inactivo');
+        expect(readBody<ErrorBody>(res).code).toBe('USER_INACTIVE');
       });
 
     await request(app.getHttpServer())
