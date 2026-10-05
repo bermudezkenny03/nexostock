@@ -34,7 +34,7 @@ import { RolesService } from './roles.service';
 @ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
 @ApiForbiddenResponse({
   description:
-    'Requires roles.manage, or tries to grant a permission the caller does not hold',
+    'Requires roles.manage (reading also accepts users.manage), or tries to grant a permission the caller does not hold',
 })
 @RequirePermissions(Permission.ROLES_MANAGE)
 @Controller('roles')
@@ -42,12 +42,14 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Get()
+  @RequirePermissions(Permission.ROLES_MANAGE, Permission.USERS_MANAGE)
   @ApiOkResponse({ type: RoleListItemEntity, isArray: true })
   findAll(@CurrentUser() actor: JwtPayload): Promise<RoleListItemEntity[]> {
     return this.rolesService.findAll(actor.businessId);
   }
 
   @Get(':id')
+  @RequirePermissions(Permission.ROLES_MANAGE, Permission.USERS_MANAGE)
   @ApiOkResponse({ type: RoleDetailEntity })
   @ApiNotFoundResponse({ description: 'Role not found in this business' })
   findOne(

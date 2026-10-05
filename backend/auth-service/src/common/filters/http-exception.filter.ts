@@ -9,10 +9,17 @@ import {
 import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 
+export const ErrorCode = {
+  USER_INACTIVE: 'USER_INACTIVE',
+  BUSINESS_INACTIVE: 'BUSINESS_INACTIVE',
+  PLAN_LIMIT_REACHED: 'PLAN_LIMIT_REACHED',
+} as const;
+
 interface ErrorShape {
   statusCode: number;
   message: string | string[];
   error: string;
+  code?: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -56,6 +63,7 @@ function fromHttpException(exception: HttpException): ErrorShape {
       typeof record?.error === 'string'
         ? record.error
         : httpStatusLabel(statusCode),
+    ...(typeof record?.code === 'string' && { code: record.code }),
   };
 }
 

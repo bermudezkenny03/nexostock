@@ -8,6 +8,7 @@ import { BusinessModule } from './business/business.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { CommonModule } from './common/common.module';
 import { JwtAuthGuard, PermissionsGuard } from './common/guards';
+import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RolesModule } from './roles/roles.module';
 import { UsersModule } from './users/users.module';
@@ -30,6 +31,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     RolesModule,
     CatalogModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [

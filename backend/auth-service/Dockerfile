@@ -36,7 +36,8 @@ RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    CHECKPOINT_DISABLE=1
 
 COPY package.json ./
 COPY --from=prod-deps /app/node_modules ./node_modules
@@ -47,7 +48,7 @@ USER node
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT:-3001}/api/health || exit 1
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && if [ \"$RUN_SEED\" = \"true\" ]; then node dist/seed.js; fi && node dist/main.js"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && if [ \"$RUN_SEED\" = \"true\" ]; then node dist/seed.js; else node dist/bootstrap.js; fi && node dist/main.js"]

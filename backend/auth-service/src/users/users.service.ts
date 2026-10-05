@@ -9,7 +9,11 @@ import * as bcrypt from 'bcrypt';
 import { TokenService } from '../auth/token.service';
 import { bcryptRounds } from '../common/config/bcrypt.config';
 import type { JwtPayload } from '../common/interfaces';
-import { RoleCode } from '../common/rbac/permission.constants';
+import { ErrorCode } from '../common/filters/http-exception.filter';
+import {
+  isPrivilegedRole,
+  PRIVILEGED_ROLE_CODES,
+} from '../common/rbac/permission.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { UserDetailEntity, UserListItemEntity } from './entities';
@@ -54,6 +58,9 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(dto.password, bcryptRounds());
 
     const userId = await this.prisma.$transaction(async (tx) => {
+      await this.lockBusiness(tx, businessId);
+      await this.assertWithinUserLimit(tx, businessId);
+
       const created = await tx.user.create({
         data: {
           email: dto.email,
@@ -97,11 +104,12 @@ export class UsersService {
         ? await this.findRoleInBusiness(dto.roleId, businessId)
         : null;
     const deactivating = dto.isActive === false && existing.isActive;
+    const reactivating = dto.isActive === true && !existing.isActive;
     const emailChanged =
       dto.email !== undefined && dto.email !== existing.email;
 
     this.assertSelfEditAllowed(id, actor, dto, nextRole, deactivating);
-    if (currentRole?.code === RoleCode.OWNER && !this.isOwner(actor)) {
+    if (isPrivilegedRole(currentRole?.code) && !this.isOwner(actor)) {
       throw new ForbiddenException(
         'Solo un propietario puede modificar a otro propietario',
       );
@@ -120,11 +128,15 @@ export class UsersService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockBusiness(tx, businessId);
 
+      if (reactivating) {
+        await this.assertWithinUserLimit(tx, businessId);
+      }
+
       const losesOwnership =
         existing.isActive &&
-        currentRole?.code === RoleCode.OWNER &&
+        isPrivilegedRole(currentRole?.code) &&
         (deactivating ||
-          (nextRole !== null && nextRole.code !== RoleCode.OWNER));
+          (nextRole !== null && !isPrivilegedRole(nextRole.code)));
       if (losesOwnership) {
         await this.assertAnotherActiveOwner(tx, businessId, id);
       }
@@ -210,7 +222,7 @@ export class UsersService {
   }
 
   private assertCanAssignRole(role: Role, actor: JwtPayload): void {
-    if (role.code === RoleCode.OWNER && !this.isOwner(actor)) {
+    if (isPrivilegedRole(role.code) && !this.isOwner(actor)) {
       throw new ForbiddenException(
         'Solo un propietario puede asignar el rol de propietario',
       );
@@ -218,7 +230,30 @@ export class UsersService {
   }
 
   private isOwner(actor: JwtPayload): boolean {
-    return actor.roles.includes(RoleCode.OWNER);
+    return actor.roles.some((code) => isPrivilegedRole(code));
+  }
+
+  private async assertWithinUserLimit(
+    tx: Prisma.TransactionClient,
+    businessId: string,
+  ): Promise<void> {
+    const { plan } = await tx.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: { plan: { select: { name: true, maxUsers: true } } },
+    });
+    if (plan.maxUsers === null) {
+      return;
+    }
+
+    const active = await tx.user.count({
+      where: { businessId, isActive: true },
+    });
+    if (active >= plan.maxUsers) {
+      throw new ForbiddenException({
+        message: `Tu plan ${plan.name} permite hasta ${plan.maxUsers} usuarios activos. Cambia de plan para agregar más.`,
+        code: ErrorCode.PLAN_LIMIT_REACHED,
+      });
+    }
   }
 
   private async findRoleInBusiness(
@@ -264,7 +299,7 @@ export class UsersService {
         businessId,
         isActive: true,
         id: { not: userId },
-        userRole: { role: { code: RoleCode.OWNER } },
+        userRole: { role: { code: { in: [...PRIVILEGED_ROLE_CODES] } } },
       },
     });
     if (others === 0) {
