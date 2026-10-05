@@ -12,7 +12,7 @@ En la interfaz se habla de **Negocio**; en código, APIs, base de datos y tokens
 
 La misión apunta a pequeños y medianos negocios que operan de forma independiente (`constitution/mission.md`). Aunque el MVP puede desplegarse para un solo cliente, el diseño debe permitir alojar varios negocios en la misma instancia sin mezclar información comercial ni credenciales. Este documento fija las reglas antes de que productos, inventario y ventas persistan datos masivos difíciles de migrar.
 
-El patrón de referencia es el de **Propia Arepa** y proyectos similares: una entidad **Negocio** como frontera de datos, usuarios pertenecientes a un negocio y roles definidos **por negocio**, con catálogo global de módulos y permisos. Del modelo SaaS clásico se adopta solo el **registro público de negocios** (`POST /api/auth/register`): cualquiera puede dar de alta su negocio y queda como propietario. **No** se adoptan tenant + company ni superadmin de plataforma; eso queda como fase opcional.
+El patrón de referencia es el de **Propia Arepa** y proyectos similares: una entidad **Negocio** como frontera de datos, usuarios pertenecientes a un negocio y roles definidos **por negocio**, con catálogo global de módulos y permisos. Del modelo SaaS clásico se adopta solo el **registro público de negocios** (`POST /api/auth/register`): cualquiera puede dar de alta su negocio y queda como propietario. **No** se adopta tenant + company. El proveedor del SaaS (`SUPER_ADMIN`) y los planes se definen en [004 · NexoStock como SaaS](../004-saas/spec.md).
 
 ## Terminología
 
@@ -127,7 +127,7 @@ Responde con la sesión ya iniciada. Se apaga con `REGISTRATION_ENABLED=false` y
 - **Identidad visual.** `primary_color` y `logo_url` viven en `businesses`. El color se valida como `#RRGGBB` y se guarda en mayúsculas. El logo es una URL http/https (sin subida de archivo). `null` los borra. Login y `/auth/me` los exponen junto al nombre.
 - **Membresía y cambio de negocio: fase 3.** `business_user` (M:N), elegir negocio en el login y cambiar de negocio no se construyen ahora.
 - **Alta de negocios: self-service.** El profesor pide un sistema multi-tenant, y un tenant que solo se crea desde el seed no lo es. `POST /api/auth/register` crea el negocio con su propietario sin necesitar un administrador de plataforma. Se puede cerrar con `REGISTRATION_ENABLED=false`.
-- **Desactivación de negocios: pendiente.** Cambiar `isActive` exige un administrador de plataforma por encima de los negocios, y ese rol no existe. Un admin del negocio no puede desactivar el suyo en `PATCH /api/business/me`: se quedaría fuera.
+- **Desactivación de negocios: la hace el `SUPER_ADMIN`** desde el panel de plataforma ([004](../004-saas/spec.md)). Un admin del negocio no puede desactivar el suyo en `PATCH /api/business/me`: se quedaría fuera.
 - **`business.manage` separado de `users.manage`.** Editar la identidad del negocio es un permiso propio. Por defecto solo lo tiene `OWNER`.
 - **Protección del propietario.** RBAC no basta: con `users.manage` se podría cambiar la contraseña del dueño o ascenderse a `OWNER`. Por eso las cuentas `OWNER` solo las gestiona otro `OWNER`, y nadie puede otorgar permisos que no tenga.
 
@@ -274,7 +274,7 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 - Sucursales o almacenes múltiples bajo un mismo negocio (`constitution/mission.md`).
 - Facturación, límites por plan o cuotas por negocio.
 - Fase 3: membresía `business_user`, elegir negocio al iniciar sesión y cambiar de negocio.
-- Desactivar o reactivar un negocio (`isActive`): pendiente de un administrador de plataforma. No hay endpoint para ello.
+- Desactivar o reactivar un negocio: se define en [004](../004-saas/spec.md).
 - Subida de archivo de logo; solo URL.
 - Replicación geográfica o base de datos dedicada por negocio.
 - Aislamiento en gateway y servicios operativos (productos, inventario, ventas, reportes): todavía pendiente.
@@ -285,7 +285,7 @@ _Cada criterio se comprueba con sí/no. Marcar `[x]` al cumplirse cuando el equi
 - **Permisos y módulos globales; roles por negocio** — un solo árbol RBAC que mantener; personalización por negocio vía roles, no duplicando permisos.
 - **Sin FK cross-schema** — alinea microservicios con PostgreSQL compartido o esquemas separados (`tech-stack.md`, sección 4).
 - **Fase 2 de auth ya implementada** — el negocio no es implícito en este servicio; el JWT lleva `businessId`.
-- **Patrón Propia Arepa con registro self-service** — entidad Negocio acotada; no se adopta tenant+company+superadmin en v2. Los negocios se crean con `POST /api/auth/register`; el administrador de plataforma queda pendiente y será el único que pueda desactivarlos.
+- **Patrón Propia Arepa con registro self-service** — entidad Negocio acotada; no se adopta tenant+company+superadmin en v2. Los negocios se crean con `POST /api/auth/register`; el `SUPER_ADMIN` ([004](../004-saas/spec.md)) es el único que puede desactivarlos.
 
 ## Documentos relacionados
 
