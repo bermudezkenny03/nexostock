@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import {
-  ModuleTreeNodeEntity,
-  PermissionCatalogItemEntity,
-} from './entities';
+  isPlatformBusiness,
+  permissionsAllowedByPlan,
+} from '../common/rbac/permission.constants';
+import { PrismaService } from '../prisma/prisma.service';
+import { ModuleTreeNodeEntity, PermissionCatalogItemEntity } from './entities';
 
 type ModuleRow = {
   id: string;
@@ -20,15 +21,39 @@ type ModuleRow = {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getModuleTree(): Promise<ModuleTreeNodeEntity[]> {
+  async getModuleTree(businessId: string): Promise<ModuleTreeNodeEntity[]> {
     const modules = await this.prisma.module.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    return this.buildModuleTree(modules);
+    const allowed = await this.allowedPermissionCodes(businessId);
+    if (allowed === null) {
+      return this.buildModuleTree(modules);
+    }
+
+    const permissions = await this.prisma.permission.findMany({
+      where: { code: { in: [...allowed] } },
+      select: { moduleId: true },
+    });
+
+    const parentOf = new Map(modules.map((m) => [m.id, m.parentId]));
+    const visible = new Set<string>();
+    for (const { moduleId } of permissions) {
+      let current: string | null | undefined = moduleId;
+      while (current && !visible.has(current)) {
+        visible.add(current);
+        current = parentOf.get(current);
+      }
+    }
+
+    return this.buildModuleTree(modules.filter((m) => visible.has(m.id)));
   }
 
-  async getPermissions(): Promise<PermissionCatalogItemEntity[]> {
+  async getPermissions(
+    businessId: string,
+  ): Promise<PermissionCatalogItemEntity[]> {
+    const allowed = await this.allowedPermissionCodes(businessId);
     const permissions = await this.prisma.permission.findMany({
+      where: allowed === null ? undefined : { code: { in: [...allowed] } },
       include: { module: true },
       orderBy: [{ module: { sortOrder: 'asc' } }, { code: 'asc' }],
     });
@@ -41,6 +66,19 @@ export class CatalogService {
       moduleId: p.moduleId,
       moduleCode: p.module.code,
     }));
+  }
+
+  private async allowedPermissionCodes(
+    businessId: string,
+  ): Promise<readonly string[] | null> {
+    if (isPlatformBusiness(businessId)) {
+      return null;
+    }
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { planCode: true },
+    });
+    return permissionsAllowedByPlan(business?.planCode ?? '');
   }
 
   private buildModuleTree(modules: ModuleRow[]): ModuleTreeNodeEntity[] {

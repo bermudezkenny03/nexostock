@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PlanEntity } from './plan.entity';
 
 export class BusinessProfileEntity {
   @ApiProperty({ format: 'uuid' })
@@ -21,4 +22,10 @@ export class BusinessProfileEntity {
 
   @ApiProperty()
   isActive!: boolean;
+
+  @ApiProperty({ type: PlanEntity })
+  plan!: PlanEntity;
+
+  @ApiProperty({ description: 'Active users, counted against plan.maxUsers.' })
+  activeUsers!: number;
 }

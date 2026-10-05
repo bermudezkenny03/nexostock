@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { applyPlan } from '../rbac/permission.constants';
 import type { AccessUserProfile } from './access-user-profile.interface';
 import {
   userWithAuthInclude,
@@ -40,9 +41,11 @@ export class AccessService {
 
   mapToAccessProfile(user: UserWithAccess): AccessUserProfile {
     const role = user.userRole?.role;
-    const permissions = role
-      ? role.rolePermissions.map((rp) => rp.permission.code).sort()
-      : [];
+    const permissions = applyPlan(
+      user.businessId,
+      user.business.planCode,
+      role ? role.rolePermissions.map((rp) => rp.permission.code) : [],
+    ).sort();
 
     return {
       id: user.id,

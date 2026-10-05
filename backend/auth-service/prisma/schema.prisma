@@ -15,13 +15,59 @@ model Business {
   primaryColor String?  @map("primary_color")
   logoUrl      String?  @map("logo_url")
   isActive     Boolean  @default(true) @map("is_active")
+  planCode     String   @default("FREE") @map("plan_code")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  users User[]
-  roles Role[]
+  plan      Plan               @relation(fields: [planCode], references: [code], onDelete: Restrict)
+  users     User[]
+  roles     Role[]
+  auditLogs PlatformAuditLog[]
 
+  @@index([planCode])
   @@map("businesses")
+}
+
+enum PlatformAction {
+  BUSINESS_ACTIVATED
+  BUSINESS_DEACTIVATED
+  PLAN_CHANGED
+  OWNER_PASSWORD_RESET
+
+  @@map("platform_action")
+}
+
+model PlatformAuditLog {
+  id           String         @id @default(uuid()) @db.Uuid
+  actorUserId  String         @map("actor_user_id") @db.Uuid
+  businessId   String         @map("business_id") @db.Uuid
+  action       PlatformAction
+  targetUserId String?        @map("target_user_id") @db.Uuid
+  details      Json?
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  actor      User     @relation("PlatformAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  targetUser User?    @relation("PlatformAuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("platform_audit_logs")
+}
+
+model Plan {
+  code        String   @id
+  name        String
+  description String?
+  maxUsers    Int?     @map("max_users")
+  maxProducts Int?     @map("max_products")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  businesses Business[]
+
+  @@map("plans")
 }
 
 model Module {
@@ -101,10 +147,12 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  business      Business       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  business      Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
   detail        UserDetail?
   userRole      UserRole?
   refreshTokens RefreshToken[]
+  auditActions  PlatformAuditLog[] @relation("PlatformAuditActor")
+  auditTargets  PlatformAuditLog[] @relation("PlatformAuditTarget")
 
   @@unique([id, businessId])
   @@index([businessId])
