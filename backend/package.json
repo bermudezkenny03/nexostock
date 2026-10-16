@@ -1,0 +1,9 @@
+{
+  "name": "nexostock-backend",
+  "private": true,
+  "description": "NexoStock services. Each app keeps its own dependencies so Prisma clients do not collide.",
+  "scripts": {
+    "build:libs": "npm run build --prefix libs/database && npm run build --prefix libs/common",
+    "build": "npm run build:libs && npm run build --prefix apps/api-gateway && npm run build --prefix apps/auth-service && npm run build --prefix apps/products-service && npm run build --prefix apps/inventory-service && npm run build --prefix apps/sales-service && npm run build --prefix apps/reports-service"
+  }
+}
