@@ -20,7 +20,7 @@ _Pasos en orden. Ajustar rutas concretas al estado del repositorio en el momento
 
 ### 1. Auth — modelo y migración
 
-1. `backend/auth-service/prisma/schema.prisma` — modelos `Business`, `User.businessId`, `Role.businessId`, `@@unique([businessId, code])` en roles.
+1. `backend/apps/auth-service/prisma/schema.prisma` — modelos `Business`, `User.businessId`, `Role.businessId`, `@@unique([businessId, code])` en roles.
 2. Migración SQL Prisma — crear `businesses`, columnas, FKs, backfill negocio por defecto, remapeo de `user_roles` (ver `spec.md`, migración).
 3. `prisma/seed.ts` — catálogo global + bucle por negocio para roles de sistema y permisos.
 4. Servicios y DTOs de usuarios/roles — filtrar por `businessId` del solicitante; prohibir cruce de negocios en asignación de roles.

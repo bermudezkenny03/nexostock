@@ -80,7 +80,7 @@ No forma parte de v2 salvo decisión explícita del equipo.
 
 ## Estado actual del auth-service (fase 2 implementada)
 
-El `auth-service` ya aísla por negocio. Una sola migración (`20251001000000_init_auth`) crea el esquema completo; detalle de rutas en `backend/auth-service/README.md`.
+El `auth-service` ya aísla por negocio. Una sola migración (`20251001000000_init_auth`) crea el esquema completo; detalle de rutas en `backend/apps/auth-service/README.md`.
 
 ### Datos
 

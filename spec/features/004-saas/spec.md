@@ -72,4 +72,4 @@ Un SaaS necesita, además de que cada cliente tenga sus datos aislados, una form
 ## Documentos relacionados
 
 - [003 · Aislamiento por Negocio](../003-negocio-aislamiento/spec.md)
-- `backend/auth-service/README.md`, secciones "SaaS: planes y equipo de NexoStock" y "Bootstrap"
+- `backend/apps/auth-service/README.md`, secciones "SaaS: planes y equipo de NexoStock" y "Bootstrap"
