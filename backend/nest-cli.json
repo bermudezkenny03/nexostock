@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "monorepo": true,
+  "root": "apps",
+  "sourceRoot": "apps",
+  "compilerOptions": {
+    "webpack": false,
+    "tsConfigPath": "apps/api-gateway/tsconfig.build.json"
+  },
+  "projects": {
+    "api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api-gateway/tsconfig.build.json"
+      }
+    },
+    "auth-service": {
+      "type": "application",
+      "root": "apps/auth-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/auth-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/auth-service/tsconfig.build.json"
+      }
+    },
+    "products-service": {
+      "type": "application",
+      "root": "apps/products-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/products-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/products-service/tsconfig.build.json"
+      }
+    },
+    "inventory-service": {
+      "type": "application",
+      "root": "apps/inventory-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/inventory-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/inventory-service/tsconfig.build.json"
+      }
+    },
+    "sales-service": {
+      "type": "application",
+      "root": "apps/sales-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/sales-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/sales-service/tsconfig.build.json"
+      }
+    },
+    "reports-service": {
+      "type": "application",
+      "root": "apps/reports-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/reports-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/reports-service/tsconfig.build.json"
+      }
+    }
+  }
+}
