@@ -3,7 +3,9 @@
   "compilerOptions": {
     "rootDir": ".",
     "module": "commonjs",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "lib": ["ES2023"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

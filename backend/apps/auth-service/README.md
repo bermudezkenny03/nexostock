@@ -299,9 +299,7 @@ Los e2e cubren:
 
 ## Docker
 
-La imagen usa Node 22, corre con un usuario sin privilegios y declara un `HEALTHCHECK`. Al arrancar ejecuta `prisma migrate deploy`, después el seed si `RUN_SEED=true` o el bootstrap en caso contrario (el seed ya incluye el bootstrap), y luego Nest. Compose local pone `RUN_SEED=true` y `NODE_ENV=development`. `CHECKPOINT_DISABLE=1` evita que Prisma consulte por internet si hay versiones nuevas en cada arranque.
-
-El `Dockerfile` tiene tres etapas: `builder` compila el código, `prod-deps` instala solo las dependencias de producción y la imagen final copia el resultado. Así las herramientas de compilación (`python3`, `make`, `g++`) y la caché de npm no llegan a la imagen final.
+La imagen usa el mismo `backend/Dockerfile.service` que productos, inventario y ventas: Node 22, usuario sin privilegios y `HEALTHCHECK`. Compose arranca con `prisma migrate deploy`, después el seed si `RUN_SEED=true` o el bootstrap en caso contrario (el seed ya incluye el bootstrap), y luego Nest. En local `RUN_SEED=true` y `NODE_ENV=development`. `CHECKPOINT_DISABLE=1` evita que Prisma consulte por internet si hay versiones nuevas en cada arranque.
 
 La imagen está publicada en Docker Hub como `andresbd2480/nexostock-auth-service`. Desde la raíz del repo:
 
@@ -314,7 +312,7 @@ AUTH_SERVICE_TAG=v0.0.1 docker compose up -d  # usa una versión concreta (por d
 Para publicar una versión nueva, sube `version` en `package.json` y:
 
 ```bash
-docker build -t andresbd2480/nexostock-auth-service:v<versión> backend/auth-service
+docker build -f backend/Dockerfile.service --build-arg SERVICE=apps/auth-service -t andresbd2480/nexostock-auth-service:v<versión> backend
 docker tag andresbd2480/nexostock-auth-service:v<versión> andresbd2480/nexostock-auth-service:latest
 docker push andresbd2480/nexostock-auth-service:v<versión>
 docker push andresbd2480/nexostock-auth-service:latest

@@ -11,6 +11,7 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2023",
+    "lib": ["ES2023"],
     "types": ["node", "jest"],
     "sourceMap": true,
     "outDir": "./dist",
@@ -19,5 +20,7 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "resolveJsonModule": true
-  }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
 }
