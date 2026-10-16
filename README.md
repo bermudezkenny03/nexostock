@@ -272,12 +272,16 @@ nexostock/
 │   └── package.json
 │
 ├── backend/
-│   ├── api-gateway/
-│   ├── auth-service/
-│   ├── products-service/
-│   ├── inventory-service/
-│   ├── sales-service/
-│   └── reports-service/
+│   ├── apps/
+│   │   ├── api-gateway/
+│   │   ├── auth-service/
+│   │   ├── products-service/
+│   │   ├── inventory-service/
+│   │   ├── sales-service/
+│   │   └── reports-service/
+│   └── libs/
+│       ├── common/
+│       └── database/
 │
 ├── docker-compose.yml
 ├── .env.example
@@ -344,7 +348,37 @@ Al finalizar el proyecto, se espera contar con una plataforma web funcional que 
 
 ## Instalación y ejecución
 
-Los comandos de instalación y ejecución se documentarán cuando se defina la configuración definitiva de los microservicios, las variables de entorno y la base de datos.
+El frontend entra solo por el API Gateway (`http://localhost:3000/api`). Auth firma el JWT; productos, inventario, ventas y reportes lo verifican y filtran por el `businessId` del token. Ventas descuenta inventario en la misma operación, con clave de idempotencia, y no acepta un precio enviado por el cliente.
+
+Requisitos: Docker y Docker Compose.
+
+```bash
+docker compose up --build
+```
+
+| Servicio | Puerto | Responsabilidad |
+| --- | --- | --- |
+| api-gateway | 3000 | Única puerta de entrada, CORS y verificación del JWT |
+| auth-service | 3001 | Identidad, negocios, roles y planes |
+| products-service | 3002 | Catálogo y categorías |
+| inventory-service | 3003 | Existencias, movimientos y alertas |
+| sales-service | 3004 | Ventas y descuento de inventario |
+| reports-service | 3005 | Indicadores de inventario y ventas |
+
+`GET /api/health` en el gateway informa si cada servicio responde. La documentación de cada API queda en `/api/docs` del servicio (por ejemplo `http://localhost:3001/api/docs`).
+
+Pruebas de unidad, desde cada carpeta de `backend/`:
+
+```bash
+cd backend/libs/database && npm install && npm run build
+cd backend/libs/common && npm install && npm test && npm run build
+cd backend/apps/auth-service && npm install && npm test
+cd backend/apps/products-service && npm install && npx prisma generate && npm test
+cd backend/apps/inventory-service && npm install && npx prisma generate && npm test
+cd backend/apps/sales-service && npm install && npx prisma generate && npm test
+cd backend/apps/reports-service && npm install && npm test
+cd backend/apps/api-gateway && npm install && npm test && npm run test:e2e
+```
 
 ---
 

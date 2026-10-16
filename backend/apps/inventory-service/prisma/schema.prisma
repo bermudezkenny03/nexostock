@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+
+  @@map("movement_type")
+}
+
+model StockItem {
+  id          String     @id @default(uuid()) @db.Uuid
+  businessId  String     @map("business_id") @db.Uuid
+  productId   String     @map("product_id") @db.Uuid
+  quantity    Int        @default(0)
+  minQuantity Int        @default(0) @map("min_quantity")
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  movements   Movement[]
+
+  @@unique([businessId, productId])
+  @@index([businessId])
+  @@map("stock_items")
+}
+
+model Movement {
+  id            String       @id @default(uuid()) @db.Uuid
+  businessId    String       @map("business_id") @db.Uuid
+  stockItemId   String       @map("stock_item_id") @db.Uuid
+  productId     String       @map("product_id") @db.Uuid
+  type          MovementType
+  quantity      Int
+  stockAfter    Int          @map("stock_after")
+  reason        String?
+  referenceType String?      @map("reference_type")
+  referenceId   String?      @map("reference_id") @db.Uuid
+  createdBy     String?      @map("created_by") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, createdAt(sort: Desc)])
+  @@index([businessId, productId])
+  @@index([referenceType, referenceId])
+  @@map("movements")
+}
+
+model IdempotencyRecord {
+  businessId   String   @map("business_id") @db.Uuid
+  key          String
+  requestHash  String   @map("request_hash")
+  statusCode   Int      @map("status_code")
+  responseBody Json     @map("response_body")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([businessId, key])
+  @@map("idempotency_records")
+}

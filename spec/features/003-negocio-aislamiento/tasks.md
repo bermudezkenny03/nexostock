@@ -56,7 +56,7 @@ _Checklist accionable derivada del `plan.md`. Fase 1: solo ítems de documentaci
 ## Fase 2 — Migración y cierre
 
 - [x] Probar migración desde base fase 1 en entorno limpio (auth-service local).
-- [x] Plan de re-login comunicado para despliegue (`backend/auth-service/README.md`).
+- [x] Plan de re-login comunicado para despliegue (`backend/apps/auth-service/README.md`).
 - [ ] Validar todos los criterios de aceptación de `spec.md` (sección fase 2).
 - [ ] Actualizar `../../constitution/roadmap.md` al cerrar v2.
 
