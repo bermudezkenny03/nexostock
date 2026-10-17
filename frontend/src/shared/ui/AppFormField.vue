@@ -19,34 +19,13 @@ const describedBy = computed(() =>
 </script>
 
 <template>
-  <div class="app-form-field">
-    <label :for="id" class="app-form-field__label">
+  <div class="flex flex-col gap-2">
+    <label :for="id" class="block text-surface-900 dark:text-surface-0 font-medium">
       {{ label }}
-      <span v-if="required" class="app-form-field__required" aria-hidden="true">*</span>
+      <span v-if="required" class="text-red-500 ml-0.5" aria-hidden="true">*</span>
     </label>
     <slot v-bind="{ id, invalid: Boolean(error), describedBy }" />
-    <small v-if="hint && !error" :id="`${id}-hint`" class="ns-muted">{{ hint }}</small>
-    <small v-if="error" :id="`${id}-error`" class="app-form-field__error" role="alert">{{ error }}</small>
+    <small v-if="hint && !error" :id="`${id}-hint`" class="text-muted-color">{{ hint }}</small>
+    <small v-if="error" :id="`${id}-error`" class="text-red-500" role="alert">{{ error }}</small>
   </div>
 </template>
-
-<style scoped>
-.app-form-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ns-space-2);
-}
-
-.app-form-field__label {
-  font-weight: 600;
-}
-
-.app-form-field__required {
-  color: var(--p-red-500);
-  margin-left: 2px;
-}
-
-.app-form-field__error {
-  color: var(--p-red-500);
-}
-</style>

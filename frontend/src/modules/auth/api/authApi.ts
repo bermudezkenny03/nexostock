@@ -1,9 +1,20 @@
 import { http } from '@/shared/api';
-import type { AuthUser, ChangePasswordRequest, LoginRequest, LoginResponse, RefreshResponse } from '../types';
+import type { PublicPlan } from '../constants/plans';
+import type { AuthUser, ChangePasswordRequest, LoginRequest, LoginResponse, RefreshResponse, RegisterRequest } from '../types';
 
 export const authApi = {
   async login(body: LoginRequest): Promise<LoginResponse> {
     const { data } = await http.post<LoginResponse>('/auth/login', body, { skipAuth: true });
+    return data;
+  },
+
+  async listPlans(): Promise<PublicPlan[]> {
+    const { data } = await http.get<PublicPlan[]>('/auth/plans', { skipAuth: true });
+    return data;
+  },
+
+  async register(body: RegisterRequest): Promise<LoginResponse> {
+    const { data } = await http.post<LoginResponse>('/auth/register', body, { skipAuth: true });
     return data;
   },
 

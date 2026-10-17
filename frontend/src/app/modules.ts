@@ -1,11 +1,26 @@
 import { authModule } from '@/modules/auth';
+import { businessesModule } from '@/modules/businesses';
 import { dashboardModule } from '@/modules/dashboard';
+import { inventoryModule } from '@/modules/inventory';
 import { platformModule } from '@/modules/platform';
 import { productsModule } from '@/modules/products';
+import { reportsModule } from '@/modules/reports';
+import { salesModule } from '@/modules/sales';
+import { usersModule } from '@/modules/users';
 import type { Panel, NavSection } from '@/shared/types/navigation';
 import type { AppModule } from '@/shared/types/module';
 
-export const appModules: readonly AppModule[] = [authModule, dashboardModule, productsModule, platformModule];
+export const appModules: readonly AppModule[] = [
+  businessesModule,
+  authModule,
+  dashboardModule,
+  productsModule,
+  inventoryModule,
+  salesModule,
+  reportsModule,
+  usersModule,
+  platformModule,
+];
 
 /** Sections with the same id contributed by several modules are merged. */
 export function navigationFor(panel: Panel, modules: readonly AppModule[] = appModules): NavSection[] {

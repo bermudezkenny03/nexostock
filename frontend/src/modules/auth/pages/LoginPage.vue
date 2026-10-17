@@ -8,7 +8,6 @@ import { useForm } from 'vee-validate';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { describeApiError } from '@/shared/api';
-import AppFormField from '@/shared/ui/AppFormField.vue';
 import { loginSchema, safeRedirect } from '../schemas/auth.schemas';
 import { useSessionStore } from '../stores/session';
 import type { SessionEndReason } from '../types';
@@ -51,65 +50,63 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="login">
-    <h1 class="login__title">Inicia sesión</h1>
-    <p class="login__subtitle">Accede al panel de tu negocio en NexoStock.</p>
-
+  <form novalidate @submit="onSubmit">
     <Message v-if="reasonMessage && !submitError" :severity="reasonMessage.severity" class="mb-4" :closable="false">
       {{ reasonMessage.text }}
     </Message>
     <Message v-if="submitError" severity="error" class="mb-4" :closable="false" role="alert">
       {{ submitError }}
     </Message>
+    <p v-if="errors.email" id="login-email-error" class="text-red-500 mb-2" role="alert">{{ errors.email }}</p>
+    <p v-if="errors.password" id="login-password-error" class="text-red-500 mb-2" role="alert">{{ errors.password }}</p>
 
-    <form class="flex flex-col gap-5" novalidate @submit="onSubmit">
-      <AppFormField id="login-email" label="Correo electrónico" :error="errors.email" required>
-        <template #default="{ id, invalid, describedBy }">
-          <InputText
-            :id="id"
-            v-model="email"
-            v-bind="emailAttrs"
-            type="email"
-            autocomplete="username"
-            :invalid="invalid"
-            :aria-describedby="describedBy"
-            :disabled="isSubmitting"
-            fluid
-            autofocus
-          />
-        </template>
-      </AppFormField>
+    <label for="login-email" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Correo electrónico</label>
+    <InputText
+      id="login-email"
+      v-model="email"
+      v-bind="emailAttrs"
+      type="email"
+      placeholder="Correo electrónico"
+      autocomplete="username"
+      class="w-full md:w-[30rem] mb-8"
+      :invalid="Boolean(errors.email)"
+      :aria-describedby="errors.email ? 'login-email-error' : undefined"
+      :disabled="isSubmitting"
+      fluid
+      autofocus
+    />
 
-      <AppFormField id="login-password" label="Contraseña" :error="errors.password" required>
-        <template #default="{ id, invalid }">
-          <Password
-            v-model="password"
-            v-bind="passwordAttrs"
-            :input-id="id"
-            :feedback="false"
-            toggle-mask
-            autocomplete="current-password"
-            :invalid="invalid"
-            :disabled="isSubmitting"
-            fluid
-          />
-        </template>
-      </AppFormField>
+    <label for="login-password" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Contraseña</label>
+    <Password
+      v-model="password"
+      v-bind="passwordAttrs"
+      input-id="login-password"
+      placeholder="Contraseña"
+      :feedback="false"
+      toggle-mask
+      autocomplete="current-password"
+      class="mb-4"
+      :invalid="Boolean(errors.password)"
+      :disabled="isSubmitting"
+      fluid
+    />
 
-      <Button type="submit" label="Ingresar" icon="pi pi-sign-in" :loading="isSubmitting" fluid />
-    </form>
-  </div>
+    <Button type="submit" label="Ingresar" class="w-full" :loading="isSubmitting" />
+    <p class="text-center mt-6 mb-0">
+      <span class="text-muted-color">¿Aún no tienes negocio?</span>
+      <router-link :to="{ name: 'register' }" class="text-primary font-medium ml-2">Ver los planes</router-link>
+    </p>
+  </form>
 </template>
 
 <style scoped>
-.login__title {
-  margin: 0;
-  font-size: var(--ns-text-2xl);
-  font-weight: 700;
+.pi-eye {
+  transform: scale(1.6);
+  margin-right: 1rem;
 }
 
-.login__subtitle {
-  margin: var(--ns-space-2) 0 var(--ns-space-6);
-  color: var(--ns-text-muted);
+.pi-eye-slash {
+  transform: scale(1.6);
+  margin-right: 1rem;
 }
 </style>

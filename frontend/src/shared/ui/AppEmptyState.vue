@@ -18,61 +18,20 @@ const iconClass = computed(
 
 <template>
   <div
-    class="app-empty-state"
-    :class="`app-empty-state--${variant}`"
+    class="flex flex-col items-center text-center gap-2 py-8 px-4"
     :role="variant === 'error' ? 'alert' : 'status'"
   >
-    <span class="app-empty-state__icon" aria-hidden="true"><i :class="iconClass" /></span>
-    <p class="app-empty-state__title">{{ title }}</p>
-    <p v-if="description" class="app-empty-state__description">{{ description }}</p>
-    <div v-if="$slots.default" class="app-empty-state__actions">
+    <span
+      class="flex items-center justify-center w-14 h-14 mb-2 rounded-full"
+      :class="variant === 'error' ? 'bg-red-100 dark:bg-red-400/10 text-red-500' : 'bg-surface-100 dark:bg-surface-800 text-muted-color'"
+      aria-hidden="true"
+    >
+      <i :class="[iconClass, 'text-2xl']" />
+    </span>
+    <p class="font-semibold text-lg m-0">{{ title }}</p>
+    <p v-if="description" class="text-muted-color m-0 max-w-md">{{ description }}</p>
+    <div v-if="$slots.default" class="mt-3 flex gap-2">
       <slot />
     </div>
   </div>
 </template>
-
-<style scoped>
-.app-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--ns-space-2);
-  padding: var(--ns-space-8) var(--ns-space-4);
-}
-
-.app-empty-state__icon {
-  display: grid;
-  place-items: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  margin-bottom: var(--ns-space-2);
-  border-radius: 999px;
-  background: var(--ns-surface-hover);
-  color: var(--ns-text-muted);
-  font-size: 1.5rem;
-}
-
-.app-empty-state--error .app-empty-state__icon {
-  background: color-mix(in srgb, var(--p-red-500) 12%, transparent);
-  color: var(--p-red-500);
-}
-
-.app-empty-state__title {
-  margin: 0;
-  font-weight: 600;
-  font-size: var(--ns-text-lg);
-}
-
-.app-empty-state__description {
-  margin: 0;
-  max-width: 28rem;
-  color: var(--ns-text-muted);
-}
-
-.app-empty-state__actions {
-  margin-top: var(--ns-space-3);
-  display: flex;
-  gap: var(--ns-space-2);
-}
-</style>

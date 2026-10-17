@@ -6,11 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="NexoStock: gestión de inventario, productos y ventas." />
     <title>NexoStock</title>
+    <link href="https://fonts.cdnfonts.com/css/lato" rel="stylesheet" />
     <script>
       (function () {
         try {
-          var stored = localStorage.getItem('nexostock.theme');
-          var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var stored = JSON.parse(localStorage.getItem('nexostock.layout') || 'null');
+          var dark = stored && typeof stored.darkTheme === 'boolean'
+            ? stored.darkTheme
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (dark) document.documentElement.classList.add('app-dark');
         } catch (e) {}
       })();
@@ -18,8 +21,8 @@
   </head>
   <body>
     <div id="app">
-      <div role="status" aria-live="polite" style="display:grid;place-items:center;min-height:100vh;font-family:system-ui,sans-serif;color:#64748b">
-        Cargando NexoStock…
+      <div class="preloader" role="status" aria-live="polite">
+        <div class="preloader-content"></div>
       </div>
     </div>
     <script type="module" src="/src/app/main.ts"></script>

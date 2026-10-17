@@ -1,9 +1,12 @@
+import Aura from '@primeuix/themes/aura';
 import PrimeVue from 'primevue/config';
 import ConfirmationService from 'primevue/confirmationservice';
+import StyleClass from 'primevue/styleclass';
 import ToastService from 'primevue/toastservice';
 import Tooltip from 'primevue/tooltip';
 import type { App } from 'vue';
-import { NexoStockPreset } from './theme';
+import { useLayout } from '@/shared/composables/useLayout';
+import { applyThemeConfig } from './theme';
 
 const esLocale = {
   accept: 'Sí',
@@ -64,13 +67,17 @@ const esLocale = {
 export function installPrimeVue(app: App): void {
   app.use(PrimeVue, {
     theme: {
-      preset: NexoStockPreset,
+      preset: Aura,
       options: { darkModeSelector: '.app-dark' },
     },
     locale: esLocale,
-    ripple: false,
   });
   app.use(ToastService);
   app.use(ConfirmationService);
   app.directive('tooltip', Tooltip);
+  app.directive('styleclass', StyleClass);
+
+  const { layoutConfig, syncDarkClass } = useLayout();
+  applyThemeConfig(layoutConfig);
+  syncDarkClass();
 }

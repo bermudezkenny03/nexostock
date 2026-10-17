@@ -18,6 +18,24 @@ export const strongPasswordSchema = z
   .max(PASSWORD_MAX_LENGTH, `Máximo ${PASSWORD_MAX_LENGTH} caracteres`)
   .regex(PASSWORD_PATTERN, 'Debe incluir al menos una letra y un número');
 
+const personName = (message: string) => z.string().trim().min(1, message).max(120, 'Máximo 120 caracteres');
+
+export const registerSchema = z
+  .object({
+    businessName: personName('Ingresa el nombre del negocio'),
+    firstName: personName('Ingresa tu nombre'),
+    lastName: personName('Ingresa tu apellido'),
+    email: z.string().trim().min(1, 'Ingresa tu correo').max(254).email('Correo no válido'),
+    password: strongPasswordSchema,
+    confirmPassword: z.string().min(1, 'Confirma la contraseña'),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Las contraseñas no coinciden',
+  });
+
+export type RegisterForm = z.infer<typeof registerSchema>;
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Ingresa tu contraseña actual').max(PASSWORD_MAX_LENGTH),

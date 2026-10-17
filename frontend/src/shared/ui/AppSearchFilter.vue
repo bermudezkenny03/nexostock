@@ -12,10 +12,9 @@ const props = withDefaults(
     debounceMs?: number;
     maxlength?: number;
   }>(),
-  { placeholder: 'Buscar…', label: 'Buscar', debounceMs: SEARCH_DEBOUNCE_MS, maxlength: 160 },
+  { placeholder: 'Buscar...', label: 'Buscar', debounceMs: SEARCH_DEBOUNCE_MS, maxlength: 160 },
 );
 
-/** Debounced value; the input updates immediately, the model after `debounceMs`. */
 const model = defineModel<string>({ default: '' });
 const draft = ref(model.value);
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -37,8 +36,8 @@ onBeforeUnmount(() => clearTimeout(timer));
 </script>
 
 <template>
-  <div class="app-search-filter">
-    <IconField class="app-search-filter__input">
+  <div class="flex flex-wrap items-center gap-3">
+    <IconField class="flex-1 min-w-64 max-w-md">
       <InputIcon class="pi pi-search" />
       <InputText
         v-model="draft"
@@ -52,18 +51,3 @@ onBeforeUnmount(() => clearTimeout(timer));
     <slot />
   </div>
 </template>
-
-<style scoped>
-.app-search-filter {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ns-space-3);
-  margin-bottom: var(--ns-space-4);
-}
-
-.app-search-filter__input {
-  flex: 1 1 16rem;
-  max-width: 28rem;
-}
-</style>

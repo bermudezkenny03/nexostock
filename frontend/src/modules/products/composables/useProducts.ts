@@ -20,16 +20,24 @@ export const categoryKeys = {
   all: ['categories'] as const,
 };
 
-export function useProductList(query: MaybeRefOrGetter<ProductListQuery>) {
+export function useProductList(query: MaybeRefOrGetter<ProductListQuery>, enabled: MaybeRefOrGetter<boolean> = true) {
   return useQuery({
     queryKey: computed(() => productKeys.list(toValue(query))),
     queryFn: () => productsApi.list(toValue(query)),
     placeholderData: (previous) => previous,
+    enabled: computed(() => toValue(enabled)),
   });
 }
 
 export function useCategories() {
   return useQuery({ queryKey: categoryKeys.all, queryFn: categoriesApi.list });
+}
+
+/** Catalog snapshot for labels in inventory/sales tables (max 100 rows). */
+export function useProductLookup() {
+  const query = useProductList({ page: 1, pageSize: 100, includeInactive: true });
+  const byId = computed(() => new Map((query.data.value?.items ?? []).map((product) => [product.id, product])));
+  return { ...query, byId };
 }
 
 function useInvalidateCatalog() {

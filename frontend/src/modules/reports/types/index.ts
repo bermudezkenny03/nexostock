@@ -21,3 +21,23 @@ export interface DateRange {
   from?: string;
   to?: string;
 }
+
+export interface SalesSeriesPoint {
+  day: string;
+  count: number;
+  total: string;
+}
+
+export interface SalesSeries {
+  from: string;
+  to: string;
+  items: SalesSeriesPoint[];
+}
+
+export interface TopProduct {
+  productId: string;
+  sku: string;
+  productName: string;
+  quantity: number;
+  total: string;
+}

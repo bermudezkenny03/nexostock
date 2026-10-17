@@ -11,6 +11,7 @@ useMockServer();
 const Blank = defineComponent({ render: () => h('div') });
 const routes = [
   { path: '/login', name: 'login', component: LoginPage },
+  { path: '/register', name: 'register', component: Blank },
   { path: '/', name: 'home', component: Blank },
   { path: '/app/products', name: 'products', component: Blank },
 ];

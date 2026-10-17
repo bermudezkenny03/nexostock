@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { appModules } from '../modules';
 
-const AppShell = () => import('../layouts/AppShell.vue');
-const AuthLayout = () => import('../layouts/AuthLayout.vue');
+const AppLayout = () => import('../layout/AppLayout.vue');
+const AuthLayout = () => import('../layout/AuthLayout.vue');
 
 export function buildRoutes(): RouteRecordRaw[] {
   return [
@@ -13,9 +13,8 @@ export function buildRoutes(): RouteRecordRaw[] {
     },
     {
       path: '/',
-      component: AppShell,
+      component: AppLayout,
       children: [
-        // Resolved by the guard to the home of the user's panel.
         { path: '', name: 'home', redirect: { name: 'dashboard' } },
         ...appModules.flatMap((module) => module.shellRoutes ?? []),
         {

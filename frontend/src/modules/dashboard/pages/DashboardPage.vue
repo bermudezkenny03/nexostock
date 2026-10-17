@@ -1,110 +1,87 @@
 <script setup lang="ts">
-import Column from 'primevue/column';
 import Message from 'primevue/message';
-import { computed } from 'vue';
+import Select from 'primevue/select';
+import { computed, ref } from 'vue';
 import { useMyBusiness } from '@/modules/businesses';
-import { useLowStock, useReportsOverview } from '@/modules/reports';
+import { useLowStock, useReportsOverview, useSalesSeries, useTopProducts, type DateRange } from '@/modules/reports';
+import { useSalesList } from '@/modules/sales';
 import { describeApiError } from '@/shared/api';
 import { usePermissions } from '@/shared/composables/usePermissions';
 import { Permission } from '@/shared/constants/permissions';
-import AppDataTable from '@/shared/ui/AppDataTable.vue';
-import AppPageHeader from '@/shared/ui/AppPageHeader.vue';
-import AppStatCard from '@/shared/ui/AppStatCard.vue';
-import { formatInteger, formatMoney } from '@/shared/utils/format';
-import PlanUsageCard from '../components/PlanUsageCard.vue';
+import BestSellingWidget from '../components/BestSellingWidget.vue';
+import NotificationsWidget from '../components/NotificationsWidget.vue';
+import RecentSalesWidget from '../components/RecentSalesWidget.vue';
+import RevenueStreamWidget from '../components/RevenueStreamWidget.vue';
+import StatsWidget from '../components/StatsWidget.vue';
 
 const { can } = usePermissions();
 const canViewReports = computed(() => can(Permission.REPORTS_VIEW));
+const canViewSales = computed(() => can([Permission.SALES_VIEW, Permission.REPORTS_VIEW]));
+
+const periods = [
+  { label: '7 días', value: 7 },
+  { label: '30 días', value: 30 },
+  { label: '90 días', value: 90 },
+] as const;
+
+const period = ref<(typeof periods)[number]['value']>(30);
+const range = computed<DateRange>(() => {
+  if (period.value === 30) {
+    return {};
+  }
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - period.value);
+  return { from: from.toISOString(), to: to.toISOString() };
+});
 
 const business = useMyBusiness();
-const overview = useReportsOverview(canViewReports);
+const overview = useReportsOverview(canViewReports, range);
 const lowStock = useLowStock(canViewReports);
+const series = useSalesSeries(canViewReports, range);
+const topProducts = useTopProducts(canViewReports, range);
+const recentSales = useSalesList(
+  computed(() => ({ page: 1, pageSize: 5 })),
+  canViewSales,
+);
 
-const overviewData = computed(() => overview.data.value);
 const overviewError = computed(() => (overview.error.value ? describeApiError(overview.error.value) : null));
-const lowStockError = computed(() => (lowStock.error.value ? describeApiError(lowStock.error.value) : null));
 </script>
 
 <template>
-  <div>
-    <AppPageHeader
-      :title="business.data.value?.name ?? 'Panel'"
-      subtitle="Resumen de productos, inventario y ventas de tu negocio."
-    />
-
+  <div class="grid grid-cols-12 gap-8">
     <template v-if="canViewReports">
-      <Message v-if="overviewError" severity="error" class="mb-4" :closable="false">{{ overviewError }}</Message>
-      <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <AppStatCard
-          label="Productos activos"
-          icon="pi pi-box"
-          :loading="overview.isPending.value"
-          :value="overviewData ? formatInteger(overviewData.products.active) : null"
-          :hint="overviewData ? `${formatInteger(overviewData.products.total)} registrados en total` : undefined"
-        />
-        <AppStatCard
-          label="Unidades en inventario"
-          icon="pi pi-warehouse"
-          :loading="overview.isPending.value"
-          :value="overviewData ? formatInteger(overviewData.inventory.units) : null"
-          :hint="overviewData ? `${formatInteger(overviewData.inventory.skuCount)} SKU con existencias` : undefined"
-        />
-        <AppStatCard
-          label="Productos con stock bajo"
-          icon="pi pi-exclamation-triangle"
-          :loading="overview.isPending.value"
-          :value="overviewData ? formatInteger(overviewData.inventory.lowStock) : null"
-          hint="En o por debajo del mínimo configurado"
-        />
-        <AppStatCard
-          label="Ventas (últimos 30 días)"
-          icon="pi pi-shopping-cart"
-          :loading="overview.isPending.value"
-          :value="overviewData ? formatMoney(overviewData.sales.total) : null"
-          :hint="overviewData ? `${formatInteger(overviewData.sales.count)} ventas confirmadas` : undefined"
-        />
-      </div>
+      <Message v-if="overviewError" severity="error" class="col-span-12 mb-0" :closable="false">{{ overviewError }}</Message>
+      <StatsWidget :overview="overview.data.value" :loading="overview.isPending.value" :sales-label="`Ventas (${period} días)`" />
     </template>
+    <div v-else class="col-span-12">
+      <div class="card">
+        <div class="font-semibold text-xl mb-2">Indicadores</div>
+        <p class="text-muted-color m-0">Tu rol no incluye el permiso de reportes, por eso no se muestran indicadores de ventas e inventario.</p>
+      </div>
+    </div>
 
-    <div class="grid gap-6 xl:grid-cols-3">
-      <PlanUsageCard
-        :business="business.data.value"
-        :loading="business.isPending.value"
-        :active-products="overviewData?.products.active ?? null"
+    <div class="col-span-12 xl:col-span-6">
+      <RecentSalesWidget
+        v-if="canViewSales"
+        :items="recentSales.data.value?.items ?? []"
+        :loading="recentSales.isPending.value"
       />
-
-      <section v-if="canViewReports" class="ns-card xl:col-span-2" aria-labelledby="low-stock-title">
-        <h2 id="low-stock-title" class="mt-0 mb-4 text-lg font-semibold">Alertas de stock mínimo</h2>
-        <AppDataTable
-          :value="lowStock.data.value ?? []"
-          data-key="productId"
-          :loading="lowStock.isPending.value"
-          :error="lowStockError"
-          :rows="5"
-          table-label="Productos con stock bajo"
-          empty-title="Sin alertas"
-          empty-description="Todos los productos están por encima de su mínimo."
-          @retry="lowStock.refetch()"
-        >
-          <Column field="sku" header="SKU">
-            <template #body="{ data }">
-              <span class="ns-mono">{{ data.sku ?? '—' }}</span>
-            </template>
-          </Column>
-          <Column field="name" header="Producto">
-            <template #body="{ data }">{{ data.name ?? 'Producto no disponible' }}</template>
-          </Column>
-          <Column field="quantity" header="Existencia" class="text-right" />
-          <Column field="minQuantity" header="Mínimo" class="text-right" />
-        </AppDataTable>
-      </section>
-
-      <section v-else class="ns-card xl:col-span-2">
-        <h2 class="mt-0 mb-2 text-lg font-semibold">Indicadores</h2>
-        <p class="ns-muted m-0">
-          Tu rol no incluye el permiso de reportes, por eso no se muestran indicadores de ventas e inventario.
-        </p>
-      </section>
+      <BestSellingWidget v-if="canViewReports" :items="topProducts.data.value ?? []" :loading="topProducts.isPending.value" />
+    </div>
+    <div class="col-span-12 xl:col-span-6">
+      <RevenueStreamWidget v-if="canViewReports" :series="series.data.value" :loading="series.isPending.value">
+        <template #toolbar>
+          <Select v-model="period" :options="[...periods]" option-label="label" option-value="value" aria-label="Periodo de ventas" class="w-36" />
+        </template>
+      </RevenueStreamWidget>
+      <NotificationsWidget
+        :alerts="lowStock.data.value ?? []"
+        :loading="canViewReports && lowStock.isPending.value"
+        :show-stock="canViewReports"
+        :business="business.data.value"
+        :active-products="overview.data.value?.products.active ?? null"
+      />
     </div>
   </div>
 </template>

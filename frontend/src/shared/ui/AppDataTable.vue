@@ -63,9 +63,10 @@ const isLazy = () => props.totalRecords !== undefined;
       :rows="rows"
       :paginator="paginator && (isLazy() ? (totalRecords ?? 0) > rows : value.length > rows)"
       :rows-per-page-options="PAGE_SIZE_OPTIONS"
-      paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
+      paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
       current-page-report-template="{first}–{last} de {totalRecords}"
-      striped-rows
+      row-hover
+      responsive-layout="scroll"
       scrollable
       :table-props="{ 'aria-label': tableLabel }"
       @page="onPage"

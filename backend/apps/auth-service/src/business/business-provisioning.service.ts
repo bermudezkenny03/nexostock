@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { bcryptRounds } from '../common/config/bcrypt.config';
 import { RoleCode } from '../common/rbac/permission.constants';
@@ -11,6 +11,7 @@ export interface NewBusinessWithOwner {
   password: string;
   firstName: string;
   lastName: string;
+  planCode?: string;
 }
 
 export interface ProvisionedBusiness {
@@ -34,11 +35,20 @@ export class BusinessProvisioningService {
       throw new ConflictException('El email ya está registrado');
     }
 
+    const planCode = input.planCode ?? 'FREE';
+    const plan = await this.prisma.plan.findUnique({
+      where: { code: planCode },
+      select: { code: true },
+    });
+    if (!plan) {
+      throw new BadRequestException('El plan no existe');
+    }
+
     const passwordHash = await bcrypt.hash(input.password, bcryptRounds());
 
     return this.prisma.$transaction(async (tx) => {
       const business = await tx.business.create({
-        data: { name: input.businessName },
+        data: { name: input.businessName, planCode: plan.code },
       });
       const roleIds = await syncSystemRoles(tx, business.id);
 

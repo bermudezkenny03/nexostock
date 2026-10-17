@@ -24,7 +24,7 @@ const sections = computed(() =>
         <p :id="`menu-section-${section.id}`" class="layout-menu-section-label">{{ section.label }}</p>
         <ul class="layout-menu" :aria-labelledby="`menu-section-${section.id}`">
           <li v-for="item in section.items" :key="item.label">
-            <RouterLink :to="item.to" class="layout-menu-link" @click="emit('navigate')">
+            <RouterLink v-if="item.to" :to="item.to" class="layout-menu-link" @click="emit('navigate')">
               <i :class="item.icon" aria-hidden="true" />
               <span>{{ item.label }}</span>
             </RouterLink>

@@ -4,7 +4,7 @@ import { claimTabSession, refreshSession, tokenStorage } from '@/shared/api';
 import { Permission, PLATFORM_BUSINESS_ID } from '@/shared/constants/permissions';
 import type { Panel } from '@/shared/types/navigation';
 import { authApi } from '../api/authApi';
-import type { AuthUser, ChangePasswordRequest, LoginRequest, SessionStatus } from '../types';
+import type { AuthUser, ChangePasswordRequest, LoginRequest, LoginResponse, RegisterRequest, SessionStatus } from '../types';
 
 export const useSessionStore = defineStore('session', () => {
   const user = ref<AuthUser | null>(null);
@@ -67,12 +67,19 @@ export const useSessionStore = defineStore('session', () => {
     return restoring;
   }
 
-  async function login(credentials: LoginRequest): Promise<AuthUser> {
-    const response = await authApi.login(credentials);
+  function acceptSession(response: LoginResponse): AuthUser {
     tokenStorage.setTokens(response);
     user.value = response.user;
     status.value = 'authenticated';
     return response.user;
+  }
+
+  async function login(credentials: LoginRequest): Promise<AuthUser> {
+    return acceptSession(await authApi.login(credentials));
+  }
+
+  async function register(body: RegisterRequest): Promise<AuthUser> {
+    return acceptSession(await authApi.register(body));
   }
 
   async function reloadUser(): Promise<void> {
@@ -113,6 +120,7 @@ export const useSessionStore = defineStore('session', () => {
     clear,
     restore,
     login,
+    register,
     reloadUser,
     logout,
     logoutAll,

@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -6,7 +8,11 @@ import {
 import { PlatformAction, type Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { TokenService } from '../auth/token.service';
-import { type PlanEntity, toPlanEntity } from '../business/entities';
+import {
+  type PlanEntity,
+  type PlatformPlanRequestEntity,
+  toPlanEntity,
+} from '../business/entities';
 import { AccessService } from '../common/access';
 import { bcryptRounds } from '../common/config/bcrypt.config';
 import type { JwtPayload } from '../common/interfaces';
@@ -19,7 +25,9 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChangeBusinessPlanDto,
+  DecidePlanRequestDto,
   ListAuditLogsQueryDto,
+  UpdatePlanDto,
   ListBusinessesQueryDto,
   ResetOwnerPasswordDto,
   UpdateBusinessStatusDto,
@@ -70,6 +78,37 @@ export class PlatformService {
       orderBy: { sortOrder: 'asc' },
     });
     return plans.map(toPlanEntity);
+  }
+
+  async updatePlan(code: string, dto: UpdatePlanDto): Promise<PlanEntity> {
+    if (!/^[A-Z0-9_]+$/.test(code)) {
+      throw new BadRequestException('Código de plan inválido');
+    }
+    const existing = await this.prisma.plan.findUnique({ where: { code } });
+    if (!existing) {
+      throw new NotFoundException('Plan no encontrado');
+    }
+
+    const description =
+      dto.description === undefined
+        ? undefined
+        : dto.description === null || dto.description.trim() === ''
+          ? null
+          : dto.description.trim();
+
+    const updated = await this.prisma.plan.update({
+      where: { code },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(dto.maxUsers !== undefined ? { maxUsers: dto.maxUsers } : {}),
+        ...(dto.maxProducts !== undefined ? { maxProducts: dto.maxProducts } : {}),
+        ...(dto.monthlyPrice !== undefined
+          ? { monthlyPrice: dto.monthlyPrice }
+          : {}),
+      },
+    });
+    return toPlanEntity(updated);
   }
 
   async listBusinesses(
@@ -192,6 +231,94 @@ export class PlatformService {
     });
 
     return this.getBusiness(businessId);
+  }
+
+  async listPlanRequests(): Promise<PlatformPlanRequestEntity[]> {
+    const rows = await this.prisma.planChangeRequest.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        requestedPlan: { select: { code: true, name: true } },
+        business: {
+          select: {
+            id: true,
+            name: true,
+            planCode: true,
+            plan: { select: { name: true } },
+          },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      businessId: row.business.id,
+      businessName: row.business.name,
+      currentPlanCode: row.business.planCode,
+      currentPlanName: row.business.plan.name,
+      requestedPlanCode: row.requestedPlan.code,
+      requestedPlanName: row.requestedPlan.name,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async decidePlanRequest(
+    id: string,
+    dto: DecidePlanRequestDto,
+    actor: JwtPayload,
+  ): Promise<void> {
+    await this.assertActiveProvider(actor);
+    const request = await this.prisma.planChangeRequest.findUnique({
+      where: { id },
+      include: { business: { select: { id: true, planCode: true } } },
+    });
+    if (!request || isPlatformBusiness(request.businessId)) {
+      throw new NotFoundException('Solicitud no encontrada');
+    }
+    if (request.status !== 'PENDING') {
+      throw new ConflictException('La solicitud ya fue resuelta');
+    }
+
+    const decidedAt = new Date();
+    if (!dto.approve) {
+      await this.prisma.planChangeRequest.update({
+        where: { id },
+        data: { status: 'REJECTED', decidedAt, decidedByUserId: actor.sub },
+      });
+      return;
+    }
+
+    const plan = await this.prisma.plan.findUnique({
+      where: { code: request.requestedPlanCode },
+      select: { code: true },
+    });
+    if (!plan) {
+      throw new NotFoundException('Plan no encontrado');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (request.business.planCode !== plan.code) {
+        await tx.business.update({
+          where: { id: request.businessId },
+          data: { planCode: plan.code },
+        });
+        await tx.platformAuditLog.create({
+          data: {
+            actorUserId: actor.sub,
+            businessId: request.businessId,
+            action: PlatformAction.PLAN_CHANGED,
+            details: {
+              from: request.business.planCode,
+              to: plan.code,
+              requestId: id,
+            },
+          },
+        });
+      }
+      await tx.planChangeRequest.update({
+        where: { id },
+        data: { status: 'APPROVED', decidedAt, decidedByUserId: actor.sub },
+      });
+    });
   }
 
   async resetOwnerPassword(

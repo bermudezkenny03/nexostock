@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from 'primevue/button';
 import Column from 'primevue/column';
+import Toolbar from 'primevue/toolbar';
 import { computed, ref } from 'vue';
 import { describeApiError } from '@/shared/api';
 import { useConfirmAction } from '@/shared/composables/useConfirmAction';
@@ -8,7 +9,6 @@ import { useNotify } from '@/shared/composables/useNotify';
 import { usePermissions } from '@/shared/composables/usePermissions';
 import { Permission } from '@/shared/constants/permissions';
 import AppDataTable from '@/shared/ui/AppDataTable.vue';
-import AppPageHeader from '@/shared/ui/AppPageHeader.vue';
 import AppPermissionGate from '@/shared/ui/AppPermissionGate.vue';
 import AppSearchFilter from '@/shared/ui/AppSearchFilter.vue';
 import AppStatusBadge from '@/shared/ui/AppStatusBadge.vue';
@@ -74,16 +74,18 @@ async function toggleActive(category: Category): Promise<void> {
 
 <template>
   <div>
-    <AppPageHeader title="Categorías" subtitle="Agrupa tus productos para encontrarlos y reportarlos mejor.">
-      <template #actions>
-        <AppPermissionGate :permissions="Permission.PRODUCTS_MANAGE">
-          <Button label="Nueva categoría" icon="pi pi-plus" @click="openCreate" />
-        </AppPermissionGate>
-      </template>
-    </AppPageHeader>
-
-    <section class="ns-card">
-      <AppSearchFilter v-model="search" placeholder="Buscar categoría" label="Buscar categorías" :debounce-ms="150" />
+    <div class="card">
+      <h4 class="m-0 mb-4">Categorías</h4>
+      <Toolbar class="mb-6">
+        <template #start>
+          <AppPermissionGate :permissions="Permission.PRODUCTS_MANAGE">
+            <Button label="Nueva categoría" icon="pi pi-plus" severity="secondary" class="mr-2" @click="openCreate" />
+          </AppPermissionGate>
+        </template>
+        <template #end>
+          <AppSearchFilter v-model="search" placeholder="Buscar..." label="Buscar categorías" :debounce-ms="150" />
+        </template>
+      </Toolbar>
 
       <AppDataTable
         :value="filtered"
@@ -100,7 +102,7 @@ async function toggleActive(category: Category): Promise<void> {
         </Column>
         <Column header="Descripción">
           <template #body="{ data }">
-            <span class="ns-muted">{{ data.description ?? '—' }}</span>
+            <span class="text-muted-color">{{ data.description ?? '—' }}</span>
           </template>
         </Column>
         <Column header="Estado">
@@ -136,7 +138,7 @@ async function toggleActive(category: Category): Promise<void> {
           <Button v-if="!search && canManage" label="Nueva categoría" icon="pi pi-plus" @click="openCreate" />
         </template>
       </AppDataTable>
-    </section>
+    </div>
 
     <CategoryFormDialog v-if="canManage" v-model:visible="dialogVisible" :category="editing" />
   </div>

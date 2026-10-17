@@ -9,7 +9,6 @@ import { formatInteger } from '@/shared/utils/format';
 const props = defineProps<{
   business: BusinessProfile | undefined;
   loading: boolean;
-  /** Active products, only known when the user can read reports. */
   activeProducts: number | null;
 }>();
 
@@ -39,9 +38,9 @@ function percent(usage: Usage): number {
 </script>
 
 <template>
-  <section class="ns-card" aria-labelledby="plan-usage-title">
-    <div class="mb-4 flex items-center justify-between gap-3">
-      <h2 id="plan-usage-title" class="m-0 text-lg font-semibold">Tu plan</h2>
+  <div class="card">
+    <div class="flex items-center justify-between mb-6">
+      <div class="font-semibold text-xl">Tu plan</div>
       <Skeleton v-if="loading" width="5rem" height="1.5rem" />
       <Tag v-else-if="business" :value="business.plan.name" icon="pi pi-star" />
     </div>
@@ -50,7 +49,7 @@ function percent(usage: Usage): number {
       <Skeleton height="1rem" />
     </template>
     <template v-else-if="business">
-      <p v-if="business.plan.description" class="ns-muted mt-0 mb-4">{{ business.plan.description }}</p>
+      <p v-if="business.plan.description" class="text-muted-color mt-0 mb-4">{{ business.plan.description }}</p>
       <ul class="m-0 flex list-none flex-col gap-4 p-0">
         <li v-for="usage in usages" :key="usage.label">
           <div class="mb-2 flex justify-between text-sm">
@@ -71,5 +70,5 @@ function percent(usage: Usage): number {
         </li>
       </ul>
     </template>
-  </section>
+  </div>
 </template>

@@ -12,13 +12,15 @@ withDefaults(
 </script>
 
 <template>
-  <div class="app-loading-state" role="status" aria-live="polite" :aria-label="label">
+  <div role="status" aria-live="polite" :aria-label="label">
     <span class="sr-only">{{ label }}</span>
     <template v-if="variant === 'cards'">
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div v-for="n in rows" :key="n" class="ns-card">
-          <Skeleton width="40%" height="0.9rem" class="mb-3" />
-          <Skeleton width="60%" height="1.8rem" />
+      <div class="grid grid-cols-12 gap-8">
+        <div v-for="n in rows" :key="n" class="col-span-12 lg:col-span-6 xl:col-span-3">
+          <div class="card mb-0">
+            <Skeleton width="40%" height="0.9rem" class="mb-3" />
+            <Skeleton width="60%" height="1.8rem" />
+          </div>
         </div>
       </div>
     </template>

@@ -1,5 +1,5 @@
 import { http } from '@/shared/api';
-import type { DateRange, LowStockItem, ReportsOverview } from '../types';
+import type { DateRange, LowStockItem, ReportsOverview, SalesSeries, TopProduct } from '../types';
 
 export const reportsApi = {
   async overview(range: DateRange = {}): Promise<ReportsOverview> {
@@ -9,6 +9,16 @@ export const reportsApi = {
 
   async lowStock(): Promise<LowStockItem[]> {
     const { data } = await http.get<LowStockItem[]>('/reports/low-stock');
+    return data;
+  },
+
+  async sales(range: DateRange = {}): Promise<SalesSeries> {
+    const { data } = await http.get<SalesSeries>('/reports/sales', { params: range });
+    return data;
+  },
+
+  async topProducts(range: DateRange = {}): Promise<TopProduct[]> {
+    const { data } = await http.get<TopProduct[]>('/reports/top-products', { params: range });
     return data;
   },
 };

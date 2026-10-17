@@ -10,6 +10,7 @@ import { useConfirmAction } from '@/shared/composables/useConfirmAction';
 import { useNotify } from '@/shared/composables/useNotify';
 import AppFormField from '@/shared/ui/AppFormField.vue';
 import AppPageHeader from '@/shared/ui/AppPageHeader.vue';
+import { initials } from '@/shared/utils/format';
 import { changePasswordSchema } from '../schemas/auth.schemas';
 import { useSessionStore } from '../stores/session';
 
@@ -63,24 +64,22 @@ async function onLogoutAll(): Promise<void> {
   <div>
     <AppPageHeader title="Mi cuenta" subtitle="Datos de tu usuario y seguridad de la sesión." />
 
-    <div class="grid gap-6 lg:grid-cols-2">
-      <section class="ns-card" aria-labelledby="account-profile-title">
-        <h2 id="account-profile-title" class="mt-0 mb-4 text-lg font-semibold">Perfil</h2>
-        <dl class="account-details">
-          <dt>Nombre</dt>
-          <dd>{{ session.displayName }}</dd>
-          <dt>Correo</dt>
-          <dd>{{ session.user?.email }}</dd>
-          <dt>Negocio</dt>
-          <dd>{{ session.user?.businessName }}</dd>
-          <dt>Roles</dt>
-          <dd class="flex flex-wrap gap-2">
-            <Tag v-for="role in session.user?.roles ?? []" :key="role" :value="role" severity="secondary" />
-          </dd>
-        </dl>
-      </section>
+    <section class="card mb-6" aria-labelledby="account-profile-title">
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="profile-mark" aria-hidden="true">{{ initials(session.user?.firstName, session.user?.lastName, session.user?.email) }}</span>
+        <div class="min-w-0">
+          <h2 id="account-profile-title" class="m-0 text-xl font-semibold text-surface-900 dark:text-surface-0">{{ session.displayName }}</h2>
+          <p class="mb-0 mt-1 text-muted-color">{{ session.user?.email }}</p>
+        </div>
+        <div class="ml-auto flex flex-wrap items-center gap-3">
+          <span class="font-semibold text-surface-900 dark:text-surface-0">{{ session.user?.businessName }}</span>
+          <Tag v-for="role in session.user?.roles ?? []" :key="role" :value="role" severity="secondary" />
+        </div>
+      </div>
+    </section>
 
-      <section class="ns-card" aria-labelledby="account-password-title">
+    <div class="grid items-start gap-6 lg:grid-cols-2">
+      <section class="card" aria-labelledby="account-password-title">
         <h2 id="account-password-title" class="mt-0 mb-4 text-lg font-semibold">Cambiar contraseña</h2>
         <form class="flex flex-col gap-4" novalidate @submit="onChangePassword">
           <AppFormField id="current-password" label="Contraseña actual" :error="errors.currentPassword" required>
@@ -131,16 +130,16 @@ async function onLogoutAll(): Promise<void> {
               />
             </template>
           </AppFormField>
-          <p class="ns-muted m-0 text-sm">Al cambiarla se cerrarán todas tus sesiones activas.</p>
+          <p class="text-muted-color m-0 text-sm">Al cambiarla se cerrarán todas tus sesiones activas.</p>
           <div>
             <Button type="submit" label="Actualizar contraseña" icon="pi pi-key" :loading="isSubmitting" />
           </div>
         </form>
       </section>
 
-      <section class="ns-card lg:col-span-2" aria-labelledby="account-sessions-title">
+      <section class="card" aria-labelledby="account-sessions-title">
         <h2 id="account-sessions-title" class="mt-0 mb-2 text-lg font-semibold">Sesiones</h2>
-        <p class="ns-muted mt-0">Cierra la sesión en todos los dispositivos donde hayas ingresado.</p>
+        <p class="text-muted-color mt-0">Cierra la sesión en todos los dispositivos donde hayas ingresado.</p>
         <Button
           label="Cerrar todas las sesiones"
           icon="pi pi-power-off"
@@ -155,19 +154,15 @@ async function onLogoutAll(): Promise<void> {
 </template>
 
 <style scoped>
-.account-details {
+.profile-mark {
   display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--ns-space-3) var(--ns-space-6);
-  margin: 0;
-}
-
-.account-details dt {
-  color: var(--ns-text-muted);
-}
-
-.account-details dd {
-  margin: 0;
-  font-weight: 500;
+  width: 3.25rem;
+  height: 3.25rem;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: var(--primary-contrast-color);
+  font-weight: 700;
 }
 </style>

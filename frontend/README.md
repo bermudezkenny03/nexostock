@@ -30,12 +30,15 @@ Usuarios de seed: `admin@nexostock.local` / `Admin123!` (OWNER, PRO), `ventas@do
 
 ```text
 src/
-  app/       arranque, router y guards, layouts, providers (PrimeVue, sesión)
-  shared/    api (httpClient, errores, tokens), ui (App*), composables, constants, styles
-  modules/   auth, dashboard, products, inventory, reports, businesses, platform
+  app/       arranque, router, providers, layout de Sakai Vue (AppLayout, Topbar, Menu, Configurator)
+  assets/    SCSS original de Sakai (sakai-assets) + Tailwind de la plantilla
+  shared/    api (httpClient, errores, tokens), ui (App* sobre PrimeVue/Sakai), composables
+  modules/   auth, dashboard, products, inventory, sales, reports, users, businesses, platform
              cada módulo expone rutas y menú desde su index.ts
 tests/       unit (Vitest), e2e (Playwright), utils (MSW, mount)
 ```
+
+La base visual es [Sakai Vue 5](https://github.com/primefaces/sakai-vue) (MIT, PrimeTek). Los estilos de `src/assets/sakai` se copian sin modificar; la marca NexoStock solo cambia nombre, logo de producto y el modelo de menú filtrado por permisos.
 
 ESLint impide que `shared/` importe `modules/` o `app/`, y que un módulo importe internos de otro.
 
@@ -55,17 +58,22 @@ ESLint impide que `shared/` importe `modules/` o `app/`, y que un módulo import
 | B. Fundación (tema, layout, componentes, httpClient) | Completada. |
 | C. Autenticación, rutas, guards, tests | Completada. |
 | D. Productos y categorías | Completada. |
-| E–F. Inventario, ventas, reportes, usuarios, roles, plataforma | Pendiente. |
+| E–F. Inventario, ventas, reportes, usuarios, roles, plataforma | Completada (capa visual Sakai + APIs reales). |
 
 ## Qué está conectado de verdad
 
 Todo lo siguiente usa el gateway real; no hay mocks en la aplicación (MSW solo en tests):
 
-- Login, refresh, `me`, logout, logout-all y cambio de contraseña.
-- Dashboard: `GET /business/me` (plan y límites), `GET /reports/overview` y `GET /reports/low-stock` si el rol tiene `reports.view`.
+- Login, registro público (`POST /auth/register` con `planCode` opcional; sin él queda en FREE), catálogo público `GET /auth/plans`, refresh, `me`, logout, logout-all y cambio de contraseña. La tarjeta del registro no se envía.
+- Dashboard: `GET /business/me`, `GET /reports/overview`, `GET /reports/low-stock`, `GET /reports/sales`, `GET /reports/top-products` y `GET /sales` si el rol lo permite. Sin cifras inventadas: si no hay ventas, los widgets quedan vacíos.
 - Productos: listado paginado con búsqueda y filtros, alta, edición, activar/desactivar; `minQuantity` leído de `GET /inventory/stock/:id`.
 - Categorías: listado, alta, edición, activar/desactivar.
-- Plataforma: `GET /platform/businesses` y `GET /platform/plans`.
+- Inventario: `GET /inventory/stock`, `PATCH` mínimo, `GET /inventory/movements` y `POST /inventory/movements`.
+- Ventas: `GET /sales`, alta y cancelación.
+- Reportes: mismos endpoints del dashboard, con filtro de fechas.
+- Usuarios y roles: `GET/POST/PATCH /users`, `GET/POST/PATCH/DELETE /roles`, `GET /permissions`.
+- Plataforma: `GET /platform/businesses`, cambio de plan y estado, `GET /platform/plans` y `PATCH /platform/plans/:code` (nombre, descripción, límites y precio mensual).
+- Plan del negocio: `GET /business/me` en `/app/plan`. Quien administra el negocio puede pedir otro plan (`POST /business/me/plan-request`); la plataforma lo confirma en el resumen. El visitante ve el catálogo en `/register`.
 
 Brechas del backend y propuestas: [docs/backend-dependencies.md](docs/backend-dependencies.md).
 

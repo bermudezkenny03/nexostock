@@ -1,0 +1,31 @@
+/** PrimeIcons used across NexoStock. Do not introduce other icon libraries. */
+export const Icon = {
+  dashboard: 'pi pi-fw pi-home',
+  products: 'pi pi-fw pi-box',
+  categories: 'pi pi-fw pi-tags',
+  inventory: 'pi pi-fw pi-warehouse',
+  movements: 'pi pi-fw pi-sort-alt',
+  sales: 'pi pi-fw pi-shopping-cart',
+  reports: 'pi pi-fw pi-chart-bar',
+  users: 'pi pi-fw pi-users',
+  roles: 'pi pi-fw pi-lock',
+  account: 'pi pi-fw pi-user',
+  platform: 'pi pi-fw pi-globe',
+  businesses: 'pi pi-fw pi-building',
+  plans: 'pi pi-fw pi-star',
+  search: 'pi pi-search',
+  plus: 'pi pi-plus',
+  pencil: 'pi pi-pencil',
+  check: 'pi pi-check',
+  ban: 'pi pi-ban',
+  refresh: 'pi pi-refresh',
+  eye: 'pi pi-eye',
+  download: 'pi pi-download',
+  key: 'pi pi-key',
+  signOut: 'pi pi-sign-out',
+  warning: 'pi pi-exclamation-triangle',
+  inbox: 'pi pi-inbox',
+  calendar: 'pi pi-calendar',
+} as const;
+
+export type AppIcon = (typeof Icon)[keyof typeof Icon];

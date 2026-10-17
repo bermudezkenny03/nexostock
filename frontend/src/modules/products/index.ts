@@ -1,7 +1,8 @@
+import { Icon } from '@/shared/constants/icons';
 import { Permission } from '@/shared/constants/permissions';
 import type { AppModule } from '@/shared/types/module';
 
-export { productKeys, categoryKeys, useProductList, useCategories } from './composables/useProducts';
+export { productKeys, categoryKeys, useProductList, useCategories, useProductLookup } from './composables/useProducts';
 export type { Product, Category } from './types';
 
 /** Same read permissions as GET /products and GET /categories. */
@@ -30,8 +31,8 @@ export const productsModule: AppModule = {
       panel: 'business',
       order: 10,
       items: [
-        { label: 'Productos', icon: 'pi pi-box', to: { name: 'products' }, permissions: CATALOG_READ },
-        { label: 'Categorías', icon: 'pi pi-tags', to: { name: 'categories' }, permissions: CATALOG_READ },
+        { label: 'Productos', icon: Icon.products, to: { name: 'products' }, permissions: CATALOG_READ },
+        { label: 'Categorías', icon: Icon.categories, to: { name: 'categories' }, permissions: CATALOG_READ },
       ],
     },
   ],
