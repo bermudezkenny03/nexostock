@@ -1,0 +1,44 @@
+/* Accessibility additions on top of the Sakai layout. Do not replace Sakai SCSS. */
+@use './sakai/layout/mixins' as *;
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.skip-link {
+    position: fixed;
+    left: 2rem;
+    top: -100px;
+    z-index: 1100;
+    padding: 0.5rem 1rem;
+    border-radius: var(--content-border-radius);
+    background: var(--primary-color);
+    color: var(--primary-contrast-color);
+    font-weight: 700;
+
+    &:focus {
+        top: 1rem;
+        @include focused();
+    }
+}
+
+.layout-main:focus {
+    outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

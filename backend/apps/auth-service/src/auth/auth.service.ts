@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { BusinessProvisioningService } from '../business/business-provisioning.service';
+import {
+  type PublicPlanEntity,
+  toPublicPlanEntity,
+} from '../business/entities';
 import { AccessService } from '../common/access';
 import { registrationEnabled } from '../common/config/auth.config';
 import { bcryptRounds } from '../common/config/bcrypt.config';
@@ -74,6 +78,13 @@ export class AuthService {
       ...(await this.tokenService.issueTokenPair(authUser)),
       user: authUser,
     };
+  }
+
+  async listPublicPlans(): Promise<PublicPlanEntity[]> {
+    const plans = await this.prisma.plan.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
+    return plans.map(toPublicPlanEntity);
   }
 
   async register(dto: RegisterBusinessDto): Promise<LoginResponseEntity> {

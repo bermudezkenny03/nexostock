@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 import { IsStrongPassword, Trim } from '../common/validation';
 
@@ -81,11 +82,67 @@ export class UpdateBusinessStatusDto {
   reason?: string;
 }
 
+export class UpdatePlanDto {
+  @ApiPropertyOptional({ example: 'Básico' })
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name?: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  @Trim()
+  @IsString()
+  @MaxLength(300)
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Null clears the limit.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  maxUsers?: number | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Null clears the limit.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  maxProducts?: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '199.00',
+    description: 'Monthly price. Null clears it. 0 means free.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/)
+  monthlyPrice?: string | null;
+}
+
 export class ChangeBusinessPlanDto {
   @ApiProperty({ example: 'BASIC' })
   @IsString()
   @Matches(PLAN_CODE)
   planCode!: string;
+}
+
+export class DecidePlanRequestDto {
+  @ApiProperty({ description: 'True applies the requested plan. False rejects it.' })
+  @IsBoolean()
+  approve!: boolean;
 }
 
 export class ResetOwnerPasswordDto {

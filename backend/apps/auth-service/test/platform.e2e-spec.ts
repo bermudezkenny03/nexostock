@@ -229,6 +229,130 @@ describeIfDb('SaaS platform (e2e)', () => {
         .expect(404);
     });
 
+    it('publishes a plan price and assigns that plan on registration', async () => {
+      const admin = await login(SUPER_ADMIN.email, SUPER_ADMIN.password);
+      const catalog = body<
+        Array<{ code: string; monthlyPrice: string | null; name: string }>
+      >(await http().get('/api/auth/plans').expect(200));
+      expect(catalog.map((plan) => plan.code)).toEqual(['FREE', 'BASIC', 'PRO']);
+      expect(Number(catalog.find((plan) => plan.code === 'FREE')?.monthlyPrice)).toBe(0);
+
+      const basic = catalog.find((plan) => plan.code === 'BASIC');
+      if (!basic) {
+        throw new Error('BASIC missing');
+      }
+
+      try {
+        const updated = body<{ code: string; monthlyPrice: string | null }>(
+          await http()
+            .patch('/api/platform/plans/BASIC')
+            .set('Authorization', auth(admin))
+            .send({ monthlyPrice: '199.00', name: 'Básico' })
+            .expect(200),
+        );
+        expect(updated.code).toBe('BASIC');
+        expect(Number(updated.monthlyPrice)).toBe(199);
+
+        await http()
+          .patch('/api/platform/plans/BASIC')
+          .send({ monthlyPrice: '1.00' })
+          .expect(401);
+
+        const email = uniqueEmail('paid');
+        const registered = body<Session>(
+          await http()
+            .post('/api/auth/register')
+            .send({
+              businessName: `E2E Plan ${Date.now()}`,
+              firstName: 'Ana',
+              lastName: 'Pagos',
+              email,
+              password: PASSWORD,
+              planCode: 'BASIC',
+            })
+            .expect(201),
+        );
+        createdBusinessIds.push(registered.user.businessId);
+
+        const profile = body<{ plan: { code: string; monthlyPrice: string | null } }>(
+          await http()
+            .get('/api/business/me')
+            .set('Authorization', auth(registered))
+            .expect(200),
+        );
+        expect(profile.plan.code).toBe('BASIC');
+        expect(Number(profile.plan.monthlyPrice)).toBe(199);
+
+        await http()
+          .post('/api/auth/register')
+          .send({
+            businessName: `E2E Missing ${Date.now()}`,
+            firstName: 'Ana',
+            lastName: 'Pagos',
+            email: uniqueEmail('missing'),
+            password: PASSWORD,
+            planCode: 'NOPE',
+          })
+          .expect(400);
+      } finally {
+        await http()
+          .patch('/api/platform/plans/BASIC')
+          .set('Authorization', auth(admin))
+          .send({ monthlyPrice: basic.monthlyPrice, name: basic.name })
+          .expect(200);
+      }
+    });
+
+    it('lets a store request a plan and the provider confirm it', async () => {
+      const admin = await login(SUPER_ADMIN.email, SUPER_ADMIN.password);
+      const store = await registerBusiness();
+
+      const created = body<{ id: string; requestedPlanCode: string }>(
+        await http()
+          .post('/api/business/me/plan-request')
+          .set('Authorization', auth(store))
+          .send({ planCode: 'PRO' })
+          .expect(201),
+      );
+      expect(created.requestedPlanCode).toBe('PRO');
+
+      await http()
+        .post('/api/business/me/plan-request')
+        .set('Authorization', auth(store))
+        .send({ planCode: 'BASIC' })
+        .expect(409);
+
+      const pending = body<Array<{ id: string; businessId: string }>>(
+        await http()
+          .get('/api/platform/plan-requests')
+          .set('Authorization', auth(admin))
+          .expect(200),
+      );
+      expect(pending.some((row) => row.id === created.id)).toBe(true);
+
+      await http()
+        .post(`/api/platform/plan-requests/${created.id}/decision`)
+        .set('Authorization', auth(admin))
+        .send({ approve: true })
+        .expect(204);
+
+      const profile = body<{ plan: { code: string } }>(
+        await http()
+          .get('/api/business/me')
+          .set('Authorization', auth(store))
+          .expect(200),
+      );
+      expect(profile.plan.code).toBe('PRO');
+
+      const after = body<{ id: string } | null>(
+        await http()
+          .get('/api/business/me/plan-request')
+          .set('Authorization', auth(store))
+          .expect(200),
+      );
+      expect(after).toBeNull();
+    });
+
     it('deactivates a business, closes its sessions and reactivates it', async () => {
       const admin = await login(SUPER_ADMIN.email, SUPER_ADMIN.password);
       const store = await registerBusiness();

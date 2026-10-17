@@ -20,13 +20,15 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { PlanEntity } from '../business/entities';
+import { PlanEntity, PlatformPlanRequestEntity } from '../business/entities';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { JwtPayload } from '../common/interfaces';
 import { Permission } from '../common/rbac/permission.constants';
 import {
   ChangeBusinessPlanDto,
+  DecidePlanRequestDto,
   ListAuditLogsQueryDto,
+  UpdatePlanDto,
   ListBusinessesQueryDto,
   ResetOwnerPasswordDto,
   UpdateBusinessStatusDto,
@@ -56,6 +58,34 @@ export class PlatformController {
   @ApiOkResponse({ type: PlanEntity, isArray: true })
   listPlans(): Promise<PlanEntity[]> {
     return this.platformService.listPlans();
+  }
+
+  @Patch('plans/:code')
+  @ApiOkResponse({ type: PlanEntity })
+  @ApiNotFoundResponse({ description: 'Plan not found' })
+  updatePlan(
+    @Param('code') code: string,
+    @Body() dto: UpdatePlanDto,
+  ): Promise<PlanEntity> {
+    return this.platformService.updatePlan(code, dto);
+  }
+
+  @Get('plan-requests')
+  @ApiOkResponse({ type: PlatformPlanRequestEntity, isArray: true })
+  listPlanRequests(): Promise<PlatformPlanRequestEntity[]> {
+    return this.platformService.listPlanRequests();
+  }
+
+  @Post('plan-requests/:id/decision')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({ description: 'Request approved or rejected' })
+  @ApiNotFoundResponse({ description: 'Request or plan not found' })
+  decidePlanRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DecidePlanRequestDto,
+    @CurrentUser() actor: JwtPayload,
+  ): Promise<void> {
+    return this.platformService.decidePlanRequest(id, dto, actor);
   }
 
   @Get('audit-logs')

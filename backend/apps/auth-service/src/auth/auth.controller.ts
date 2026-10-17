@@ -19,6 +19,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { PublicPlanEntity } from '../business/entities';
 import { CurrentUser, Public } from '../common/decorators';
 import type { JwtPayload } from '../common/interfaces';
 import { AuthService } from './auth.service';
@@ -44,13 +45,25 @@ const ONE_HOUR_MS = 3_600_000;
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('plans')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: ONE_MINUTE_MS } })
+  @ApiOkResponse({
+    type: PublicPlanEntity,
+    isArray: true,
+    description: 'Plan catalog without permission codes. No authentication.',
+  })
+  listPlans(): Promise<PublicPlanEntity[]> {
+    return this.authService.listPublicPlans();
+  }
+
   @Post('register')
   @Public()
   @Throttle({ default: { limit: 5, ttl: ONE_HOUR_MS } })
   @ApiCreatedResponse({
     type: LoginResponseEntity,
     description:
-      'Creates a business (tenant) with its system roles and the caller as OWNER, then signs in.',
+      'Creates a business (tenant) with its system roles and the caller as OWNER, then signs in. planCode assigns an existing plan; omitted means FREE.',
   })
   @ApiConflictResponse({ description: 'Email already registered' })
   @ApiForbiddenResponse({ description: 'Public registration is disabled' })

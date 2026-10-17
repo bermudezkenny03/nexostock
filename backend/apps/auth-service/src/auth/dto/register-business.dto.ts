@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import {
   EMAIL_MAX_LENGTH,
   IsName,
@@ -34,4 +34,15 @@ export class RegisterBusinessDto {
   })
   @IsStrongPassword()
   password!: string;
+
+  @ApiPropertyOptional({
+    example: 'BASIC',
+    description:
+      'Plan code from GET /auth/plans. Omitted or FREE creates the free plan. The value must already exist.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_]+$/)
+  @MaxLength(32)
+  planCode?: string;
 }

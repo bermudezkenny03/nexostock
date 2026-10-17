@@ -19,10 +19,11 @@ model Business {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  plan      Plan               @relation(fields: [planCode], references: [code], onDelete: Restrict)
-  users     User[]
-  roles     Role[]
-  auditLogs PlatformAuditLog[]
+  plan               Plan                @relation(fields: [planCode], references: [code], onDelete: Restrict)
+  users              User[]
+  roles              Role[]
+  auditLogs          PlatformAuditLog[]
+  planChangeRequests PlanChangeRequest[]
 
   @@index([planCode])
   @@map("businesses")
@@ -59,15 +60,43 @@ model Plan {
   code        String   @id
   name        String
   description String?
-  maxUsers    Int?     @map("max_users")
-  maxProducts Int?     @map("max_products")
-  sortOrder   Int      @default(0) @map("sort_order")
+  maxUsers     Int?     @map("max_users")
+  maxProducts  Int?     @map("max_products")
+  monthlyPrice Decimal? @map("monthly_price") @db.Decimal(12, 2)
+  sortOrder    Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  businesses Business[]
+  businesses         Business[]
+  planChangeRequests PlanChangeRequest[]
 
   @@map("plans")
+}
+
+enum PlanRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("plan_request_status")
+}
+
+model PlanChangeRequest {
+  id                String            @id @default(uuid()) @db.Uuid
+  businessId        String            @map("business_id") @db.Uuid
+  requestedPlanCode String            @map("requested_plan_code")
+  status            PlanRequestStatus @default(PENDING)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  decidedAt         DateTime?         @map("decided_at") @db.Timestamptz(3)
+  decidedByUserId   String?           @map("decided_by_user_id") @db.Uuid
+
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  requestedPlan Plan     @relation(fields: [requestedPlanCode], references: [code], onDelete: Restrict)
+  decidedBy     User?    @relation("PlanRequestDecider", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([businessId, status])
+  @@map("plan_change_requests")
 }
 
 model Module {
@@ -151,8 +180,9 @@ model User {
   detail        UserDetail?
   userRole      UserRole?
   refreshTokens RefreshToken[]
-  auditActions  PlatformAuditLog[] @relation("PlatformAuditActor")
-  auditTargets  PlatformAuditLog[] @relation("PlatformAuditTarget")
+  auditActions       PlatformAuditLog[]  @relation("PlatformAuditActor")
+  auditTargets       PlatformAuditLog[]  @relation("PlatformAuditTarget")
+  decidedPlanRequests PlanChangeRequest[] @relation("PlanRequestDecider")
 
   @@unique([id, businessId])
   @@index([businessId])

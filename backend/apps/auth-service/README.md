@@ -25,7 +25,7 @@ Formato de error: `{ statusCode, message, error, code?, timestamp, path }`. `cod
 
 ### `POST /api/auth/register` — 201 (público)
 
-Da de alta un **negocio nuevo** en el plan **Gratis**: crea sus tres roles de sistema y su primer usuario con rol `OWNER`, y devuelve la sesión ya iniciada (misma respuesta que el login).
+Da de alta un **negocio nuevo**, crea sus tres roles de sistema y su primer usuario con rol `OWNER`, y devuelve la sesión ya iniciada (misma respuesta que el login). Sin `planCode` queda en **Gratis**. `planCode` tiene que existir en `GET /api/auth/plans`.
 
 ```json
 {
@@ -33,11 +33,19 @@ Da de alta un **negocio nuevo** en el plan **Gratis**: crea sus tres roles de si
   "firstName": "Ana",
   "lastName": "Pérez",
   "email": "ana@laesquina.com",
-  "password": "SecurePass1"
+  "password": "SecurePass1",
+  "planCode": "BASIC"
 }
 ```
 
+`planCode` es opcional.
+
+- `400` si `planCode` no existe.
 - `409` si el email ya existe.
+
+### `GET /api/auth/plans` — 200 (público)
+
+Catálogo para quien todavía no es cliente: código, nombre, descripción, límites y `monthlyPrice`. No incluye los permisos del plan.
 - `403` si `REGISTRATION_ENABLED=false`.
 - Máximo 5 registros por hora y por IP.
 
@@ -172,8 +180,8 @@ Además de los límites, cada plan define qué permisos se pueden usar:
 - **Permisos efectivos = permisos del rol ∩ permisos del plan.** Se calculan al iniciar sesión y al renovar el token, así que los demás servicios aplican el plan sin hacer nada extra. Los roles no se modifican: al subir de plan, los permisos nuevos llegan en el siguiente refresh.
 - La matriz vive en `PLAN_PERMISSIONS` (`permission.constants.ts`). Un plan desconocido recibe la del plan Gratis.
 - El negocio del equipo de NexoStock no pasa por este filtro.
-- Toda tienda nueva empieza en `FREE`. El cambio de plan lo hace el equipo de NexoStock; no hay pasarela de pago.
-- Los planes viven en la tabla `plans` y los crea la migración `saas_plans`. Cambiar un límite o agregar un plan es una migración nueva.
+- Sin `planCode`, la tienda nueva empieza en `FREE`. El equipo de NexoStock también puede cambiar el plan de una tienda. No hay pasarela de pago: el precio mensual es un dato del catálogo.
+- Los planes viven en la tabla `plans`. `monthly_price` es `NULL` (sin precio publicado) o mayor o igual que cero. `FREE` nace en `0`. El código no se edita; nombre, descripción, límites y precio sí, con `PATCH /api/platform/plans/:code`.
 - El límite de productos lo aplicará `products-service`; aquí solo se expone.
 - Bajar de plan no desactiva a nadie: los usuarios que sobran siguen activos, pero no se pueden agregar ni reactivar usuarios hasta quedar dentro del límite.
 
@@ -190,11 +198,16 @@ El proveedor del SaaS es un negocio más, `NexoStock` (`PLATFORM_BUSINESS_ID` en
 
 ### Panel de plataforma
 
-Todas las rutas exigen `platform.manage` **y** pertenecer al negocio NexoStock. Las que cambian datos vuelven a comprobar en la base que quien las pide siga activo, porque el token no se revisa contra la base. El negocio NexoStock responde `404` en estas rutas.
+La tienda pide un cambio con `GET` y `POST /api/business/me/plan-request` (`{ planCode }`, exige `business.manage`, no cobra). `GET` devuelve la solicitud pendiente o `null`.
+
+Todas las rutas de abajo exigen `platform.manage` **y** pertenecer al negocio NexoStock. Las que cambian datos vuelven a comprobar en la base que quien las pide siga activo, porque el token no se revisa contra la base. El negocio NexoStock responde `404` en estas rutas.
 
 | Método | Ruta | Qué hace |
 | --- | --- | --- |
-| `GET` | `/api/platform/plans` | Lista los planes |
+| `GET` | `/api/platform/plans` | Lista los planes, con los permisos de cada uno |
+| `PATCH` | `/api/platform/plans/:code` | `{ name?, description?, maxUsers?, maxProducts?, monthlyPrice? }`. `null` quita el límite o el precio. No cambia el código |
+| `GET` | `/api/platform/plan-requests` | Solicitudes pendientes |
+| `POST` | `/api/platform/plan-requests/:id/decision` | `{ approve }`. Confirmar aplica el plan (`204`) |
 | `GET` | `/api/platform/businesses?search=&isActive=&planCode=&page=&pageSize=` | Tiendas paginadas (`{ items, total, page, pageSize }`, `pageSize` hasta 100). `search` busca en nombre, razón social, identificación tributaria y email de los dueños |
 | `GET` | `/api/platform/businesses/:businessId` | Detalle: plan, usuarios activos y dueños |
 | `PATCH` | `/api/platform/businesses/:businessId/status` | `{ isActive, reason? }`. Desactivar cierra todas las sesiones de la tienda |
